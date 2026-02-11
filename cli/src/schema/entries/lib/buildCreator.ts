@@ -11,7 +11,6 @@ import getUi from '#cli/schema/lib/SchemaUi.js';
 import createStylus from '#cli/ui/createStylus.js';
 import { isDeepStrictEqual } from 'node:util';
 import schemaDirectory from '../schemaDirectory.js';
-import generateFilenames from './generateFilenames.js';
 import loadEntryLocales from './loadEntryLocales.js';
 
 export default function buildCreator(
@@ -45,13 +44,9 @@ export default function buildCreator(
 }
 
 async function loadLocaleVersions(entry: Entry, contentTypeUid: string) {
-	const filenamesByTitle = generateFilenames(new Map([[entry.title, entry]]));
-	const filename = filenamesByTitle.get(entry.title);
-	if (!filename) {
-		throw new Error(`No filename found for entry ${entry.title}.`);
-	}
-
-	const baseFilename = filename.replace(/\.yaml$/u, '');
+	// entry.title is the base filename (extracted from actual files during indexing)
+	// Use it directly instead of sanitizing, since files may contain special chars
+	const baseFilename = entry.title;
 	const directory = schemaDirectory(contentTypeUid);
 	const fsLocaleVersions = await loadEntryLocales(
 		directory,
@@ -119,24 +114,59 @@ async function handleDuplicateKeyError(
 		);
 
 		if (!uid) {
-			logInvalidState(contentType.title, transformed.title);
-			const newError = new Error(
-				`Failed to create entry ${transformed.title}: Contentstack reported a duplicate title but the entry was not found after re-indexing`,
+			// Title conflicts with an entry in a DIFFERENT content type
+			// (Contentstack enforces global title uniqueness across all content types)
+			// Create a new entry with the content type name appended for uniqueness
+			const ui = getUi();
+			const uniqueTitle = `${transformed.title} (${contentType.uid})`;
+
+			ui.warn(
+				`Title "${transformed.title}" conflicts globally. ` +
+					`Creating with unique title: "${uniqueTitle}"`,
 			);
-			// Preserve the original error as the cause
-			if (ex instanceof Error) {
-				newError.cause = ex;
-			}
-			throw newError;
+
+			return await importEntry(
+				ctx.cs.client,
+				contentType.uid,
+				{ ...transformed, title: uniqueTitle },
+				false,
+				locale,
+			);
 		}
 
-		return await importEntry(
-			ctx.cs.client,
-			contentType.uid,
-			{ ...transformed, uid },
-			true,
-			locale,
-		);
+		// Found an existing entry with this title in the current content type
+		// Try to update it
+		try {
+			return await importEntry(
+				ctx.cs.client,
+				contentType.uid,
+				{ ...transformed, uid },
+				true,
+				locale,
+			);
+		} catch (updateEx) {
+			// If the update also fails due to title conflict with a different entry,
+			// append the UID to make the title unique
+			if (isTitleNotUniqueError(updateEx)) {
+				const ui = getUi();
+				const originalTitle = transformed.title;
+				const uniqueTitle = `${originalTitle} [${uid}]`;
+
+				ui.warn(
+					`Title "${originalTitle}" conflicts in ${locale ?? 'default'} locale. ` +
+						`Using unique title: "${uniqueTitle}"`,
+				);
+
+				return await importEntry(
+					ctx.cs.client,
+					contentType.uid,
+					{ ...transformed, title: uniqueTitle, uid },
+					true,
+					locale,
+				);
+			}
+			throw updateEx;
+		}
 	}
 
 	throw ex;
@@ -160,16 +190,101 @@ async function importAdditionalLocales(
 
 			const localeTransformed = transformer.process(localeVersion.entry);
 
-			return importEntry(
-				ctx.cs.client,
-				contentType.uid,
-				{ ...localeTransformed, uid: created.uid },
-				false,
-				localeVersion.locale,
-			);
+			try {
+				return await importEntry(
+					ctx.cs.client,
+					contentType.uid,
+					{ ...localeTransformed, uid: created.uid },
+					false,
+					localeVersion.locale,
+				);
+			} catch (ex) {
+				if (isLocaleAlreadyExistsError(ex)) {
+					// Error 201: locale version already exists, update instead
+					try {
+						return await importEntry(
+							ctx.cs.client,
+							contentType.uid,
+							{ ...localeTransformed, uid: created.uid },
+							true,
+							localeVersion.locale,
+						);
+					} catch (updateEx) {
+						// If the update fails with title conflict, make it unique
+						if (isTitleNotUniqueError(updateEx)) {
+							const ui = getUi();
+							const originalTitle = localeTransformed.title as string;
+							const uniqueTitle = `${originalTitle} (${contentType.uid})`;
+
+							ui.warn(
+								`Title "${originalTitle}" conflicts globally in ${localeVersion.locale} locale. ` +
+									`Using unique title: "${uniqueTitle}"`,
+							);
+
+							return await importEntry(
+								ctx.cs.client,
+								contentType.uid,
+								{ ...localeTransformed, title: uniqueTitle, uid: created.uid },
+								true,
+								localeVersion.locale,
+							);
+						}
+						throw updateEx;
+					}
+				} else if (isTitleNotUniqueError(ex)) {
+					// Error 119: title conflicts with another entry
+					// Create with content type name appended for uniqueness
+					const ui = getUi();
+					const originalTitle = localeTransformed.title as string;
+					const uniqueTitle = `${originalTitle} (${contentType.uid})`;
+
+					ui.warn(
+						`Title "${originalTitle}" conflicts in ${localeVersion.locale} locale. ` +
+							`Using unique title: "${uniqueTitle}"`,
+					);
+
+					// Try to create first (locale may not exist yet)
+					try {
+						return await importEntry(
+							ctx.cs.client,
+							contentType.uid,
+							{ ...localeTransformed, title: uniqueTitle, uid: created.uid },
+							false,
+							localeVersion.locale,
+						);
+					} catch (createEx) {
+						// If locale already exists, update instead
+						if (isLocaleAlreadyExistsError(createEx)) {
+							return await importEntry(
+								ctx.cs.client,
+								contentType.uid,
+								{ ...localeTransformed, title: uniqueTitle, uid: created.uid },
+								true,
+								localeVersion.locale,
+							);
+						}
+						throw createEx;
+					}
+				}
+				throw ex;
+			}
 		});
 
 	await Promise.all(importPromises);
+}
+
+function isLocaleAlreadyExistsError(ex: unknown): boolean {
+	// Error code 201: Entry already exists in locale
+	return ex instanceof ContentstackError && ex.code === 201;
+}
+
+function isTitleNotUniqueError(ex: unknown): boolean {
+	// Error code 119: Entry import failed with "title is not unique"
+	if (!(ex instanceof ContentstackError) || ex.code !== 119) {
+		return false;
+	}
+
+	return isDeepStrictEqual(ex.details, { title: ['is not unique.'] });
 }
 
 function isDuplicateKeyError(ex: unknown) {
@@ -177,12 +292,21 @@ function isDuplicateKeyError(ex: unknown) {
 		return false;
 	}
 
+	// Error code 119: Entry import failed with "title is not unique"
+	// Error code 201: Entry already exists in locale
 	const invalidDataCode = 119;
-	if (ex.code !== invalidDataCode) {
-		return false;
+	const entryExistsCode = 201;
+
+	if (ex.code === invalidDataCode) {
+		return isDeepStrictEqual(ex.details, { title: ['is not unique.'] });
 	}
 
-	return isDeepStrictEqual(ex.details, { title: ['is not unique.'] });
+	if (ex.code === entryExistsCode) {
+		// Code 201 means entry already exists in the specified locale
+		return true;
+	}
+
+	return false;
 }
 
 async function getUidByTitle(
@@ -192,7 +316,24 @@ async function getUidByTitle(
 	title: string,
 ) {
 	const entries = await indexEntries(client, globalFieldsByUid, contentType);
-	return entries.get(title)?.uid;
+
+	// Try exact title first
+	let uid = entries.get(title)?.uid;
+	if (uid) {
+		return uid;
+	}
+
+	// Try trimmed title if exact match fails (handles trailing/leading spaces)
+	const trimmedTitle = title.trim();
+	if (trimmedTitle !== title) {
+		uid = entries.get(trimmedTitle)?.uid;
+		if (uid) {
+			return uid;
+		}
+	}
+
+	// No match found
+	return undefined;
 }
 
 function logInvalidState(contentTypeTitle: string, entryTitle: string) {

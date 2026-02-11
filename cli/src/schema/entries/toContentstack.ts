@@ -3,6 +3,7 @@ import deleteEntry from '#cli/cs/entries/delete.js';
 import getEntryLocales from '#cli/cs/entries/getEntryLocales.js';
 import importEntry from '#cli/cs/entries/import.js';
 import type { Entry } from '#cli/cs/entries/Types.js';
+import { ensureLocaleExists } from '#cli/cs/locales/ensureLocaleExists.js';
 import BeaconReplacer from '#cli/dto/entry/BeaconReplacer.js';
 import type ProgressBar from '#cli/ui/progress/ProgressBar.js';
 import type Ctx from '../ctx/Ctx.js';
@@ -45,7 +46,45 @@ export default async function toContentstack(
 		update,
 	});
 
-	for (const title of result.unmodified) {
+	// Process unmodified entries to ensure all locale versions are synced
+	await processUnmodifiedEntries(
+		result.unmodified,
+		ctx,
+		contentType,
+		csEntriesByTitle,
+		fsEntriesByTitle,
+		transformer,
+		filenamesByTitle,
+	);
+
+	return result;
+}
+
+function shouldSyncLocales(
+	fsLocaleVersions: Awaited<ReturnType<typeof loadFsLocaleVersions>>,
+	csLocaleSet: Set<string>,
+): boolean {
+	// Check if we have new locale versions that don't exist in Contentstack
+	const fsLocaleSet = new Set(
+		fsLocaleVersions.map((lv) => (lv.locale === 'default' ? null : lv.locale)),
+	);
+	return Array.from(fsLocaleSet).some(
+		(locale) => locale !== null && !csLocaleSet.has(locale),
+	);
+}
+
+async function processUnmodifiedEntries(
+	unmodified: Iterable<string>,
+	ctx: Ctx,
+	contentType: ContentType,
+	csEntriesByTitle: ReadonlyMap<string, Entry>,
+	fsEntriesByTitle: ReadonlyMap<string, Entry>,
+	transformer: BeaconReplacer,
+	filenamesByTitle: ReadonlyMap<Entry['uid'], string>,
+) {
+	const ui = getUi();
+
+	for (const title of unmodified) {
 		const cs = csEntriesByTitle.get(title);
 		const fs = fsEntriesByTitle.get(title);
 
@@ -60,11 +99,33 @@ export default async function toContentstack(
 			throw new Error(`No matching entry found for ${title}.`);
 		}
 
+		// Load all locale versions from filesystem
+		const fsLocaleVersions = await loadFsLocaleVersions(
+			fs,
+			contentType.uid,
+			filenamesByTitle,
+		);
+
+		const csLocaleSet = await getExistingLocales(ctx, contentType, cs.uid);
+
+		// Only push if there are new locale versions to sync
+		if (!shouldSyncLocales(fsLocaleVersions, csLocaleSet)) {
+			continue;
+		}
+
+		// Push all locale versions (including new locales like zh-cn)
+		await updateAllLocales(
+			ctx,
+			transformer,
+			contentType,
+			fsLocaleVersions,
+			cs.uid,
+			csLocaleSet,
+		);
+
 		const entry = { ...fs, uid: cs.uid };
 		ctx.references.recordEntryForReferences(contentType.uid, entry);
 	}
-
-	return result;
 }
 
 function buildUpdateFn(
@@ -124,13 +185,19 @@ async function getExistingLocales(
 	ctx: Ctx,
 	contentType: ContentType,
 	entryUid: string,
-) {
-	const csLocales = await getEntryLocales(
-		ctx.cs.client,
-		contentType.uid,
-		entryUid,
-	);
-	return new Set(csLocales.map((l) => l.code));
+): Promise<Set<string>> {
+	try {
+		const csLocales = await getEntryLocales(
+			ctx.cs.client,
+			contentType.uid,
+			entryUid,
+		);
+		return new Set(csLocales.map((l) => l.code));
+	} catch {
+		// If the locales endpoint fails (e.g., not supported by Contentstack instance
+		// or entry doesn't exist yet), return empty set to indicate no locales are known
+		return new Set<string>();
+	}
 }
 
 async function updateAllLocales(
@@ -141,6 +208,13 @@ async function updateAllLocales(
 	entryUid: string,
 	csLocaleSet: Set<string>,
 ) {
+	// Ensure all required locales exist in the target stack before pushing entries
+	const localeEnsurePromises = fsLocaleVersions
+		.filter((lv) => lv.locale !== 'default')
+		.map(async (lv) => ensureLocaleExists(ctx.cs.client, lv.locale));
+
+	await Promise.all(localeEnsurePromises);
+
 	// Import all locale versions in parallel for better performance
 	const importPromises = fsLocaleVersions.map(async (localeVersion) => {
 		const transformed = transformer.process(localeVersion.entry);
@@ -148,9 +222,10 @@ async function updateAllLocales(
 		// Pass undefined for 'default' locale (single-locale backward compat)
 		const locale =
 			localeVersion.locale === 'default' ? undefined : localeVersion.locale;
-		const overwrite = locale
-			? csLocaleSet.has(localeVersion.locale)
-			: csLocaleSet.size > 0;
+
+		// Always use overwrite=true for locale-specific versions since the entry exists.
+		// For 'default' locale (single-locale backward compat), only overwrite if entry has locales.
+		const overwrite = locale ? true : csLocaleSet.size > 0;
 
 		return importEntry(
 			ctx.cs.client,

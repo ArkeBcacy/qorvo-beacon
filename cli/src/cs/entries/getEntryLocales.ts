@@ -11,23 +11,8 @@ export interface LocaleInfo {
 	readonly uid: string;
 }
 
-interface LocalesResponse {
-	readonly locales: readonly LocaleInfo[];
-}
-
-function isLocaleInfo(o: unknown): o is LocaleInfo {
-	return (
-		isRecord(o) &&
-		typeof o.code === 'string' &&
-		typeof o.name === 'string' &&
-		typeof o.uid === 'string'
-	);
-}
-
-function isLocalesResponse(o: unknown): o is LocalesResponse {
-	return (
-		isRecord(o) && Array.isArray(o.locales) && o.locales.every(isLocaleInfo)
-	);
+function isLocaleInfoRecord(o: unknown): o is Record<string, unknown> {
+	return isRecord(o) && typeof o.code === 'string';
 }
 
 /**
@@ -73,9 +58,33 @@ export default async function getEntryLocales(
 
 	const result = data as unknown;
 
-	if (!isLocalesResponse(result)) {
+	if (!isRecord(result)) {
 		throw new Error(msg);
 	}
 
-	return result.locales;
+	const raw = result.locales;
+	if (!Array.isArray(raw)) {
+		throw new Error(msg);
+	}
+
+	const normalized: LocaleInfo[] = raw.map((item) => {
+		const rec = isLocaleInfoRecord(item)
+			? item
+			: ({ code: '' } as Record<string, unknown>);
+		const code = typeof rec.code === 'string' ? rec.code : '';
+		const name = typeof rec.name === 'string' ? rec.name : code;
+		const uid = typeof rec.uid === 'string' ? rec.uid : code;
+
+		// Only include `fallback_locale` when present as a string. Construct
+		// the object with the correct shape so TypeScript can verify it against
+		// `LocaleInfo` without unsafe casts.
+		const locale =
+			typeof rec.fallback_locale === 'string'
+				? { code, fallback_locale: rec.fallback_locale, name, uid }
+				: { code, name, uid };
+
+		return locale;
+	});
+
+	return normalized;
 }

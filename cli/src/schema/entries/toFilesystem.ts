@@ -5,6 +5,7 @@ import type { Entry } from '#cli/cs/entries/Types.js';
 import transformEntry from '#cli/dto/entry/fromCs.js';
 import writeYaml from '#cli/fs/writeYaml.js';
 import getUi from '#cli/schema/lib/SchemaUi.js';
+import sanitize from 'sanitize-filename';
 import escapeRegex from '#cli/util/escapeRegex.js';
 import type ProgressBar from '#cli/ui/progress/ProgressBar.js';
 import { readdir, rm } from 'node:fs/promises';
@@ -78,20 +79,25 @@ function createWriteFn(
 			return;
 		}
 
-		// If only one locale, save without locale suffix for backward compatibility
-		const useLocaleSuffix = locales.length > 1;
+		// If only one locale, save without locale suffix for backward compatibility.
+		// When multiple locales exist, write English as base file and other locales
+		// with locale suffixes (e.g., Entry.yaml for English, Entry.zh-chs.yaml for Chinese)
 
 		// Write all locale versions in parallel for better performance
-		const writePromises = locales.map(async (locale) =>
-			writeLocaleVersion(
+		const writePromises = locales.map(async (locale) => {
+			const isEnglish = /^en(?:[-_]|$)/iu.test(locale.code);
+			// Use locale suffix for non-English locales when multiple locales exist
+			const useLocaleSuffix = locales.length > 1 && !isEnglish;
+
+			return writeLocaleVersion(
 				ctx,
 				contentType,
 				entry,
 				locale.code,
 				getBasePath,
 				useLocaleSuffix,
-			),
-		);
+			);
+		});
 
 		await Promise.all(writePromises);
 	};
@@ -112,7 +118,26 @@ async function writeLocaleVersion(
 		localeCode,
 	);
 
+	// Skip writing this locale version if it's a fallback (locale doesn't match requested)
+	// This happens when Contentstack returns the default locale content because
+	// no localized version exists for the requested locale
+	if (
+		useLocaleSuffix &&
+		exported.locale &&
+		typeof exported.locale === 'string' &&
+		exported.locale !== localeCode
+	) {
+		// This is a fallback locale, skip writing it
+		return;
+	}
+
 	const { uid, ...transformed } = transformEntry(ctx, contentType, exported);
+
+	// Preserve the actual locale code from the source stack
+	// This ensures we maintain the exact language-region configuration
+	if ('locale' in transformed) {
+		transformed.locale = localeCode;
+	}
 
 	const basePath = getBasePath(entry);
 	const filePath = useLocaleSuffix
@@ -162,10 +187,20 @@ function resolveFilename(
 	}
 
 	const generated = filenamesByTitle.get(entry.title);
-	if (!generated) {
-		const msg = `No filename found for entry [${entry.uid}]: ${entry.title}`;
-		throw new Error(msg);
+	if (generated) {
+		return generated;
 	}
 
-	return generated;
+	// Fallback: sanitize the entry title to produce a filename so deletions
+	// and other operations do not fail when a mapping is missing. This can
+	// happen when entries exist on one side but not the other during merge
+	// plans. Use the same sanitization rules as `generateFilenames`.
+	const fallback = sanitizeFilename(entry.title) + '.yaml';
+	return fallback;
+}
+
+function sanitizeFilename(name: string): string {
+	const raw = name.trim();
+	const sanitized = sanitize(raw, { replacement: '_' });
+	return sanitized.trim() || 'Untitled';
 }

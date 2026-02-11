@@ -1,3 +1,4 @@
+import getUi from '#cli/schema/lib/SchemaUi.js';
 import type { TransferContext } from './processPlan.js';
 
 export default function handleUnmodified<TItem>(ctx: TransferContext<TItem>) {
@@ -7,7 +8,9 @@ export default function handleUnmodified<TItem>(ctx: TransferContext<TItem>) {
 		const noun = unmodified.size === 1 ? 'item' : 'items';
 		const key = `${unmodified.size.toLocaleString()} unmodified ${noun}`;
 
-		ctx.progress.update({ action: 'skipping', key });
+		if (getUi().options.verbose) {
+			ctx.progress.update({ action: 'skipping', key });
+		}
 		ctx.progress.increment(unmodified.size);
 	}
 

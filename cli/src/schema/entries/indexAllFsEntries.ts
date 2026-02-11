@@ -32,15 +32,23 @@ async function loadContentTypeEntries(
 	try {
 		const files = await readdir(dir);
 		const yamlFiles = files.filter((f) => f.endsWith('.yaml'));
+
 		const entriesByTitle = await groupEntriesByTitle(dir, yamlFiles);
 
 		// For each entry title, pick one locale version to represent it
 		for (const [entryTitle, localeMap] of entriesByTitle.entries()) {
 			const preferredEntry = selectPreferredLocale(localeMap);
 			if (preferredEntry) {
+				// Preserve Contentstack UIDs (starting with 'blt'), otherwise use synthetic UID
+				const entryUid = preferredEntry.uid;
+				const uid =
+					typeof entryUid === 'string' && entryUid.startsWith('blt')
+						? entryUid
+						: `file: ${entryTitle}`;
 				entriesSet.add({
 					...preferredEntry,
-					uid: `file: ${preferredEntry.title}`,
+					title: entryTitle, // Use filename-based title for consistency
+					uid,
 				});
 			} else {
 				// Log warning if entry has files but no valid locale versions
@@ -59,6 +67,7 @@ async function loadContentTypeEntries(
 			// Directory doesn't exist, which is fine
 			return entriesSet;
 		}
+
 		throw error;
 	}
 
@@ -70,6 +79,10 @@ async function groupEntriesByTitle(
 	yamlFiles: readonly string[],
 ): Promise<Map<string, Map<string, FsEntry>>> {
 	const entriesByTitle = new Map<string, Map<string, FsEntry>>();
+
+	let skippedNoMatch = 0;
+	let skippedInvalidEntry = 0;
+	let successfulEntries = 0;
 
 	for (const file of yamlFiles) {
 		// Try to match multi-locale pattern first: title.locale.yaml
@@ -94,6 +107,7 @@ async function groupEntriesByTitle(
 			const singleLocaleMatch = /^(?<title>.+)\.yaml$/u.exec(file);
 			if (!singleLocaleMatch?.groups?.title) {
 				// Skip files that don't match either pattern
+				skippedNoMatch++;
 				continue;
 			}
 			entryTitle = singleLocaleMatch.groups.title;
@@ -104,8 +118,11 @@ async function groupEntriesByTitle(
 		const data = (await readYaml(filePath)) as Record<string, unknown>;
 
 		if (!isFsEntry(data)) {
+			skippedInvalidEntry++;
 			continue;
 		}
+
+		successfulEntries++;
 
 		let localeMap = entriesByTitle.get(entryTitle);
 		if (!localeMap) {
