@@ -74,55 +74,54 @@ async function loadContentTypeEntries(
 	return entriesSet;
 }
 
+function parseFileNameForLocale(
+	file: string,
+): { entryTitle: string; locale: string } | null {
+	// Try to match multi-locale pattern first: title.locale.yaml
+	const multiLocaleMatch = /^(?<title>.+)\.(?<locale>[^.]+)\.yaml$/u.exec(file);
+
+	if (
+		multiLocaleMatch?.groups?.title &&
+		multiLocaleMatch.groups.locale &&
+		isValidLocaleCode(multiLocaleMatch.groups.locale)
+	) {
+		// Multi-locale file with valid locale code
+		const { title, locale: localeCode } = multiLocaleMatch.groups;
+		return { entryTitle: title, locale: localeCode };
+	}
+
+	// Try single-locale pattern: title.yaml
+	const singleLocaleMatch = /^(?<title>.+)\.yaml$/u.exec(file);
+	if (!singleLocaleMatch?.groups?.title) {
+		// Skip files that don't match either pattern
+		return null;
+	}
+	return {
+		entryTitle: singleLocaleMatch.groups.title,
+		locale: 'default', // Use 'default' as locale for backward compatibility
+	};
+}
+
 async function groupEntriesByTitle(
 	dir: string,
 	yamlFiles: readonly string[],
 ): Promise<Map<string, Map<string, FsEntry>>> {
 	const entriesByTitle = new Map<string, Map<string, FsEntry>>();
 
-	let skippedNoMatch = 0;
-	let skippedInvalidEntry = 0;
-	let successfulEntries = 0;
-
 	for (const file of yamlFiles) {
-		// Try to match multi-locale pattern first: title.locale.yaml
-		const multiLocaleMatch = /^(?<title>.+)\.(?<locale>[^.]+)\.yaml$/u.exec(
-			file,
-		);
-
-		let entryTitle: string;
-		let locale: string;
-
-		if (
-			multiLocaleMatch?.groups?.title &&
-			multiLocaleMatch.groups.locale &&
-			isValidLocaleCode(multiLocaleMatch.groups.locale)
-		) {
-			// Multi-locale file with valid locale code
-			const { title, locale: localeCode } = multiLocaleMatch.groups;
-			entryTitle = title;
-			locale = localeCode;
-		} else {
-			// Try single-locale pattern: title.yaml
-			const singleLocaleMatch = /^(?<title>.+)\.yaml$/u.exec(file);
-			if (!singleLocaleMatch?.groups?.title) {
-				// Skip files that don't match either pattern
-				skippedNoMatch++;
-				continue;
-			}
-			entryTitle = singleLocaleMatch.groups.title;
-			locale = 'default'; // Use 'default' as locale for backward compatibility
+		const parsed = parseFileNameForLocale(file);
+		if (!parsed) {
+			continue;
 		}
+
+		const { entryTitle, locale } = parsed;
 
 		const filePath = resolve(dir, file);
 		const data = (await readYaml(filePath)) as Record<string, unknown>;
 
 		if (!isFsEntry(data)) {
-			skippedInvalidEntry++;
 			continue;
 		}
-
-		successfulEntries++;
 
 		let localeMap = entriesByTitle.get(entryTitle);
 		if (!localeMap) {

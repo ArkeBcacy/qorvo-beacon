@@ -9,8 +9,8 @@ export default function compileTypeScript(tsConfigUrl) {
 	const tsConfigPath = fileURLToPath(tsConfigUrl);
 
 	const result = spawnSync('yarn', ['tsc', '--build', tsConfigPath], {
-		stdio: 'inherit',
 		shell: true,
+		stdio: 'inherit',
 	});
 
 	// Check for spawn errors

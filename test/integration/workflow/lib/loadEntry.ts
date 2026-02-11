@@ -20,7 +20,7 @@ export default async function loadEntry(
 		// If simple format doesn't exist, try finding locale-specific file
 		try {
 			const files = await readdir(entriesDir);
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-call -- escapeRegex is properly typed as (string) => string
+
 			const escapedName: string = escapeRegex(name);
 			const localeFile = files.find((f) => {
 				const pattern = new RegExp(
