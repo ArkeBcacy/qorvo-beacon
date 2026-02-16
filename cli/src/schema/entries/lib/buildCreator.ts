@@ -4,6 +4,7 @@ import type Client from '#cli/cs/api/Client.js';
 import ContentstackError from '#cli/cs/api/ContentstackError.js';
 import type { ContentType } from '#cli/cs/content-types/Types.js';
 import type { Entry } from '#cli/cs/entries/Types.js';
+import deleteEntry from '#cli/cs/entries/delete.js';
 import importEntry from '#cli/cs/entries/import.js';
 import indexEntries from '#cli/cs/entries/index.js';
 import type BeaconReplacer from '#cli/dto/entry/BeaconReplacer.js';
@@ -226,7 +227,76 @@ async function handleLocaleImportError(
 		);
 	}
 
+	// Handle error 201: Entry already exists - switch to update mode
+	if (isDuplicateKeyError(ex)) {
+		const ui = getUi();
+		ui.warn(
+			`Locale ${locale} for entry ${createdUid} already exists. Updating instead.`,
+		);
+
+		try {
+			return await importEntry(
+				ctx.cs.client,
+				contentType.uid,
+				{ ...localeTransformed, uid: createdUid },
+				true, // Switch to update mode
+				locale,
+			);
+		} catch (updateEx) {
+			// If update also fails with title conflict, handle it
+			if (isTitleNotUniqueError(updateEx)) {
+				return await handleTitleNotUniqueInLocale(
+					ctx,
+					contentType,
+					localeTransformed,
+					createdUid,
+					locale,
+				);
+			}
+			throw updateEx;
+		}
+	}
+
 	throw ex;
+}
+
+/**
+ * Searches for an entry in a specific locale by title.
+ * This is used to find conflicting standalone entries that need to be deleted
+ * before creating a proper locale version.
+ */
+async function findEntryByTitleInLocale(
+	client: Client,
+	contentTypeUid: string,
+	title: string,
+	locale: string,
+): Promise<string | undefined> {
+	const result = await client.GET(
+		'/v3/content_types/{content_type_uid}/entries',
+		{
+			params: {
+				path: { content_type_uid: contentTypeUid },
+				query: {
+					locale,
+					query: JSON.stringify({ title }),
+					limit: 1,
+				},
+			},
+		},
+	);
+
+	if (result.error) {
+		return undefined;
+	}
+
+	const data = result.data as unknown;
+	const entries = (data as { entries?: Array<{ uid?: string }> })?.entries;
+
+	if (Array.isArray(entries) && entries.length > 0) {
+		return entries[0]?.uid;
+	}
+
+	return undefined;
 }
 
 async function handleLocaleExistsError(
@@ -247,6 +317,37 @@ async function handleLocaleExistsError(
 	} catch (updateEx) {
 		if (isTitleNotUniqueError(updateEx)) {
 			const ui = getUi();
+
+			// Find the conflicting entry in this locale
+			const conflictingUid = await findEntryByTitleInLocale(
+				ctx.cs.client,
+				contentType.uid,
+				localeTransformed.title,
+				locale,
+			);
+
+			// If we found a conflicting entry with a different UID, it's a standalone
+			// entry that needs to be deleted so we can create a proper locale version
+			if (conflictingUid && conflictingUid !== createdUid) {
+				ui.warn(
+					`Deleting standalone ${locale} entry "${localeTransformed.title}" (${conflictingUid}) ` +
+						`to create locale version of ${createdUid}`,
+				);
+
+				await deleteEntry(ctx.cs.client, contentType.uid, conflictingUid);
+
+				// Retry creating the locale version after deleting the conflict
+				return await importEntry(
+					ctx.cs.client,
+					contentType.uid,
+					{ ...localeTransformed, uid: createdUid },
+					true,
+					locale,
+				);
+			}
+
+			// If we couldn't find the conflicting entry or it has the same UID,
+			// fall back to using a unique title
 			const uniqueTitle = `${localeTransformed.title} (${contentType.uid})`;
 
 			ui.warn(
@@ -274,11 +375,62 @@ async function handleTitleNotUniqueInLocale(
 	locale: string,
 ): Promise<Entry> {
 	const ui = getUi();
-	const uniqueTitle = `${localeTransformed.title} (${contentType.uid})`;
+
+	// Find conflicting entries - check both original title and suffixed title
+	// (standalone entries from previous migrations may have suffix)
+	const conflictingUid = await findEntryByTitleInLocale(
+		ctx.cs.client,
+		contentType.uid,
+		localeTransformed.title,
+		locale,
+	);
+
+	const suffixedTitle = `${localeTransformed.title} (${contentType.uid})`;
+	const conflictingSuffixedUid = await findEntryByTitleInLocale(
+		ctx.cs.client,
+		contentType.uid,
+		suffixedTitle,
+		locale,
+	);
+
+	// Delete any conflicting standalone entries found
+	const uidsToDelete = [conflictingUid, conflictingSuffixedUid].filter(
+		(uid) => uid && uid !== createdUid,
+	);
+
+	if (uidsToDelete.length > 0) {
+		for (const uid of uidsToDelete) {
+			if (!uid) continue;
+			ui.warn(
+				`Deleting standalone ${locale} entry (${uid}) to create locale version of ${createdUid}`,
+			);
+			await deleteEntry(ctx.cs.client, contentType.uid, uid);
+		}
+
+		// Retry creating the locale version after deleting conflicts
+		try {
+			return await importEntry(
+				ctx.cs.client,
+				contentType.uid,
+				{ ...localeTransformed, uid: createdUid },
+				true, // Use overwrite mode for locale versions
+				locale,
+			);
+		} catch (retryEx) {
+			// If it still fails, fall through to unique title approach
+			if (!isTitleNotUniqueError(retryEx)) {
+				throw retryEx;
+			}
+		}
+	}
+
+	// Fall back to using a unique title with timestamp to ensure uniqueness
+	const timestamp = Date.now();
+	const uniqueTitle = `${localeTransformed.title} [${timestamp}]`;
 
 	ui.warn(
 		`Title "${localeTransformed.title}" conflicts in ${locale} locale. ` +
-			`Using unique title: "${uniqueTitle}"`,
+			`Using unique title with timestamp: "${uniqueTitle}"`,
 	);
 
 	try {
@@ -286,7 +438,7 @@ async function handleTitleNotUniqueInLocale(
 			ctx.cs.client,
 			contentType.uid,
 			{ ...localeTransformed, title: uniqueTitle, uid: createdUid },
-			false,
+			true, // Use overwrite mode for locale versions
 			locale,
 		);
 	} catch (createEx) {
@@ -303,6 +455,36 @@ async function handleTitleNotUniqueInLocale(
 	}
 }
 
+async function doesLocaleExistForEntry(
+	client: Client,
+	contentTypeUid: string,
+	entryUid: string,
+	locale: string,
+): Promise<boolean> {
+	try {
+		const response = await client.GET(
+			'/v3/content_types/{content_type_uid}/entries/{entry_uid}',
+			{
+				params: {
+					path: {
+						content_type_uid: contentTypeUid,
+						entry_uid: entryUid,
+					},
+					query: {
+						locale,
+					},
+				},
+			},
+		);
+
+		// If we get a successful response, the locale exists
+		return response.data !== undefined;
+	} catch {
+		// If GET fails, locale doesn't exist
+		return false;
+	}
+}
+
 async function importLocaleVersion(
 	ctx: Ctx,
 	transformer: BeaconReplacer,
@@ -316,12 +498,15 @@ async function importLocaleVersion(
 
 	const localeTransformed = transformer.process(localeVersion.entry);
 
+	// For locale versions, always use overwrite mode because we're adding/updating
+	// a locale on an existing entry (created in the base language).
+	// Contentstack requires overwrite=true when creating locale versions.
 	try {
 		return await importEntry(
 			ctx.cs.client,
 			contentType.uid,
 			{ ...localeTransformed, uid: createdUid },
-			false,
+			true, // Always use overwrite mode for locale versions
 			localeVersion.locale,
 		);
 	} catch (ex) {
@@ -416,6 +601,15 @@ async function getUidByTitle(
 		if (uid) {
 			return uid;
 		}
+	}
+
+	// Try with content type suffix appended (handles entries created before UIDs were added)
+	// Previous Beacon pushes without UIDs would create entries with title conflicts
+	// and append the content type UID to make them unique
+	const titleWithSuffix = `${title} (${contentType.uid})`;
+	uid = entries.get(titleWithSuffix)?.uid;
+	if (uid) {
+		return uid;
 	}
 
 	// No match found
