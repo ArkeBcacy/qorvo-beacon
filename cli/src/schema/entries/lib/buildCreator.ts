@@ -429,13 +429,12 @@ async function deleteConflictingEntries(
 	);
 
 	const uidsToDelete = [conflictingUid, conflictingSuffixedUid].filter(
-		(uid) => uid && uid !== createdUid,
+		(uid): uid is string => Boolean(uid) && uid !== createdUid,
 	);
 
 	if (uidsToDelete.length > 0) {
 		const ui = getUi();
 		for (const uid of uidsToDelete) {
-			if (!uid) continue;
 			ui.warn(
 				`Deleting standalone ${locale} entry (${uid}) to create locale version of ${createdUid}`,
 			);
