@@ -300,7 +300,15 @@ async function findEntryByTitleInLocale(
 		},
 	);
 
-	const { entries } = result.data as { entries: { uid?: string }[] };
+	const data = result.data as unknown as
+		| { entries: { uid?: string }[] }
+		| undefined;
+
+	if (!data?.entries) {
+		return undefined;
+	}
+
+	const { entries } = data;
 
 	if (Array.isArray(entries) && entries.length > 0) {
 		return entries[0]?.uid;
