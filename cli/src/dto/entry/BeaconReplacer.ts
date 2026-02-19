@@ -3,6 +3,7 @@ import type { ReferencePath } from '#cli/cs/entries/Types.js';
 import mapItemPathToAsset from './beaconReplacer/lib/mapItemPathToAsset.js';
 import process from './beaconReplacer/lib/process.js';
 import processAsset from './beaconReplacer/lib/processAsset.js';
+import processHtmlRteAsset from './beaconReplacer/lib/processHtmlRteAsset.js';
 import processJsonRteAsset from './beaconReplacer/lib/processJsonRteAsset.js';
 import processObject from './beaconReplacer/lib/processObject.js';
 import processReference from './beaconReplacer/lib/processReference.js';
@@ -15,6 +16,7 @@ export default class BeaconReplacer {
 	protected refPath: ReferencePath | undefined;
 	protected readonly mapItemPathToAsset: typeof mapItemPathToAsset;
 	protected readonly processAsset: typeof processAsset;
+	protected readonly processHtmlRteAsset: typeof processHtmlRteAsset;
 	protected readonly processJsonRteAsset: typeof processJsonRteAsset;
 	protected readonly processObject: typeof processObject;
 	protected readonly processReference: typeof processReference;
@@ -28,6 +30,7 @@ export default class BeaconReplacer {
 		this.mapItemPathToAsset = mapItemPathToAsset.bind(this);
 		this.process = process.bind(this);
 		this.processAsset = processAsset.bind(this);
+		this.processHtmlRteAsset = processHtmlRteAsset.bind(this);
 		this.processJsonRteAsset = processJsonRteAsset.bind(this);
 		this.processObject = processObject.bind(this);
 		this.processReference = processReference.bind(this);
