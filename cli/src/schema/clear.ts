@@ -12,13 +12,18 @@ import deleteTaxonomy from '#cli/cs/taxonomies/delete.js';
 import indexTaxonomies from '#cli/cs/taxonomies/index.js';
 import type UiContext from '#cli/ui/UiContext.js';
 import ProgressReporter from '../ui/progress/ProgressReporter.js';
+import resolveItemPath from './assets/lib/resolveItemPath.js';
 
-export default async function clear(client: Client, ui: UiContext) {
+export default async function clear(
+	client: Client,
+	ui: UiContext,
+	deleteAssets = false,
+) {
 	await Promise.allSettled([
 		deleteAllContentTypes(client, ui),
 		deleteAllGlobalFields(client, ui),
 		deleteAllTaxonomies(client, ui),
-		deleteAllAssets(client, ui),
+		deleteAllAssets(client, ui, deleteAssets),
 	]);
 }
 
@@ -76,8 +81,13 @@ async function deleteAllTaxonomies(client: Client, ui: UiContext) {
 	);
 }
 
-async function deleteAllAssets(client: Client, ui: UiContext) {
+async function deleteAllAssets(
+	client: Client,
+	ui: UiContext,
+	deleteAssets: boolean,
+) {
 	const assets = await indexAssets(client);
+	const { isIncluded } = ui.options.schema.assets;
 	const folders = new Map<string, RawFolder>();
 	const files = new Map<string, RawAsset>();
 
@@ -86,6 +96,14 @@ async function deleteAllAssets(client: Client, ui: UiContext) {
 		// delete top-level assets
 		if (asset.parent_uid) {
 			continue;
+		}
+
+		// Check if the asset is included by the filters (unless deleteAssets flag is set)
+		if (!deleteAssets) {
+			const itemPath = resolveItemPath(assets, asset);
+			if (!isIncluded(itemPath)) {
+				continue;
+			}
 		}
 
 		if (isRawAsset(asset)) {

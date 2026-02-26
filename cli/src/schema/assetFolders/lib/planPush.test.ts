@@ -46,6 +46,7 @@ describe('Asset Folders: planPush', () => {
 			// Arrange
 			const { assets, cs, isIncluded, fs, itemPath } = arrange(theory);
 			ui.options.schema.assets = { isIncluded };
+			ui.options.verbose = theory.expected === 'warning';
 
 			// Act
 			const actual = sut(cs, fs, assets);

@@ -20,6 +20,9 @@ export default function planPush(
 }
 
 function warning(ui: UiContext, itemPath: string) {
+	if (!ui.options.verbose) {
+		return;
+	}
 	const msg1 = 'Skipping asset which exists in the file system,';
 	const msg2 = 'but is not included by filters:';
 	const msg3 = styleText('yellowBright', itemPath);

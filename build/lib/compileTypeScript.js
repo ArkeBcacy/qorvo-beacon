@@ -8,12 +8,31 @@ export default function compileTypeScript(tsConfigUrl) {
 
 	const tsConfigPath = fileURLToPath(tsConfigUrl);
 
-	const buildResult = spawnSync('yarn', ['tsc', '--build', tsConfigPath], {
+	const result = spawnSync('yarn', ['tsc', '--build', tsConfigPath], {
+		shell: true,
 		stdio: 'inherit',
-	}).status;
+	});
 
-	if (buildResult !== 0) {
-		console.warn(styleText('redBright', 'Build failed'));
-		process.exit(buildResult);
+	// Check for spawn errors
+	if (result.error) {
+		console.error(styleText('redBright', 'Build failed: spawn error'));
+		console.error(result.error);
+		process.exit(1);
 	}
+
+	const buildResult = result.status;
+
+	// buildResult can be:
+	// - 0: Success
+	// - null: May indicate success on Windows
+	// - non-zero number: Failure with specific exit code
+	if (buildResult !== 0 && buildResult !== null) {
+		console.warn(
+			styleText('redBright', 'Build failed with exit code:'),
+			buildResult,
+		);
+		process.exit(buildResult || 1);
+	}
+
+	// Build succeeded (status is 0 or null)
 }

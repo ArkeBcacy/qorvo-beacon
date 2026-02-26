@@ -57,6 +57,9 @@ function* allKeys(
 }
 
 function warning(ui: UiContext, itemPath: string) {
+	if (!ui.options.verbose) {
+		return;
+	}
 	const msg1 = 'Skipping folder which exists in the file system,';
 	const msg2 = 'but is not included by filters, and contains no';
 	const msg3 = 'included children:';

@@ -29,19 +29,19 @@ and production.
 
 ## Installation
 
-Beacon is available as an NPM package under `@arke-systems/beacon-cli`. It can
+Beacon is available as an NPM package under `@arkebcacy/qorvo-beacon-cli`. It can
 be installed using any package manager that supports NPM packages.
 
 ### Install via Yarn:
 
 ```sh
-yarn add --dev @arke-systems/beacon-cli
+yarn add --dev @arkebcacy/qorvo-beacon-cli
 ```
 
 ### Install via NPM:
 
 ```sh
-npm install --save-dev @arke-systems/beacon-cli
+npm install --save-dev @arkebcacy/qorvo-beacon-cli
 ```
 
 ## Usage
@@ -233,7 +233,7 @@ The YAML configuration file allows for additional options.
 Example:
 
 ```yaml
-# yaml-language-server: $schema=node_modules/@arke-systems/beacon-cli/dist/cfg/Config.schema.yaml
+# yaml-language-server: $schema=node_modules/@arkebcacy/qorvo-beacon-cli/dist/cfg/Config.schema.yaml
 
 client:
   api-key: bltcfcf264c-example
@@ -254,6 +254,12 @@ schema:
 
   # Include or exclude assets using glob patterns.
   assets:
+    include: ['**']
+    exclude: []
+
+  # Include or exclude entries by content type UID using glob patterns.
+  # To exclude all entries, use: exclude: ['**']
+  entries:
     include: ['**']
     exclude: []
 
@@ -300,9 +306,9 @@ configuration. During this merge, the following rules apply:
   are merged, with values from the named environment being used _in addition_
   to values from the base configuration.
 
-- `schema.assets.include` and `schema.assets.exclude` are concatenated,
-  with values from the named environment being _added_ to the base
-  configuration.
+- `schema.assets.include`, `schema.assets.exclude`, `schema.entries.include`,
+  and `schema.entries.exclude` are concatenated, with values from the named
+  environment being _added_ to the base configuration.
 
 - All other values will prefer the named environment.
 
@@ -386,6 +392,36 @@ schema:
       '*': only taxonomy
 ```
 
+### Cookbook: Excluding Entries
+
+To sync only the content model (content types, global fields, and taxonomies)
+without syncing entries, configure the `entries` setting to exclude all content
+types:
+
+```yaml
+# beacon.yaml
+schema:
+  entries:
+    exclude: ['**']
+```
+
+Alternatively, you can selectively include or exclude specific content types
+by their UID:
+
+```yaml
+# beacon.yaml
+schema:
+  entries:
+    include: ['blog_post', 'page']
+    exclude: ['archived_*']
+```
+
+This is useful for scenarios like:
+
+- Setting up a new environment with the schema structure only
+- Synchronizing schema changes without affecting existing content
+- Excluding large or sensitive content types from synchronization
+
 ```yaml
 # .yarnrc.yml
 injectEnvironmentFiles: [.env?]
@@ -418,7 +454,7 @@ Some development scripts are provided:
 - `yarn lint` - Invoke ESLint.
 - `yarn pretty` - Invoke Prettier.
 - `yarn test` - Invoke unit tests.
-- `yarn workspace @arke-systems/beacon-cli generate` - Rebuild OpenAPI type
+- `yarn workspace @arkebcacy/qorvo-beacon-cli generate` - Rebuild OpenAPI type
   definitions.
 
 ## Deployment
