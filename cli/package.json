@@ -1,9 +1,9 @@
 {
-  "author": "Chris Nielsen <cnielsen@arke.com>",
+  "author": "Chris Nielsen <cnielsen@arke.com>, Bill Cacy <bcacy@arke.com>",
   "bin": {
     "beacon": "./dist/beacon.js"
   },
-  "bugs": "https://github.com/Arke-Systems/beacon/issues",
+  "bugs": "https://github.com/ArkeBcacy/qorvo-beacon/issues",
   "dependencies": {
     "@arke-systems/cs-rate-limit-middleware": "^1.0.4",
     "ajv": "^8.17.1",
@@ -31,18 +31,18 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "homepage": "https://github.com/Arke-Systems/beacon",
+  "homepage": "https://github.com/ArkeBcacy/qorvo-beacon",
   "imports": {
     "#cli/*": "./dist/*"
   },
   "license": "MIT",
-  "name": "@arke-systems/beacon-cli",
+  "name": "@arkebcacy/beacon-cli",
   "publishConfig": {
     "executableFiles": [
       "./dist/beacon.js"
     ]
   },
-  "repository": "github:Arke-Systems/beacon",
+  "repository": "github:ArkeBcacy/qorvo-beacon",
   "scripts": {
     "build": "node ./build/build.js",
     "clean": "node ./build/clean.js",
@@ -50,5 +50,5 @@
     "prepack": "node ./build/prepack.js"
   },
   "type": "module",
-  "version": "1.11.4"
+  "version": "0.1.0"
 }

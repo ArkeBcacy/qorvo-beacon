@@ -1,6 +1,6 @@
 {
-  "author": "Chris Nielsen <cnielsen@arke.com>",
-  "bugs": "https://github.com/Arke-Systems/beacon/issues",
+  "author": "Chris Nielsen <cnielsen@arke.com>, Bill Cacy <bcacy@arke.com>",
+  "bugs": "https://github.com/ArkeBcacy/qorvo-beacon/issues",
   "description": "Development scripts for the Beacon project",
   "devDependencies": {
     "@eslint/js": "^9.39.2",
@@ -15,15 +15,15 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "homepage": "https://github.com/Arke-Systems/beacon",
+  "homepage": "https://github.com/ArkeBcacy/qorvo-beacon",
   "imports": {
     "#cli/*": "./cli/src/*",
     "#test/*": "./test/*"
   },
   "license": "MIT",
-  "name": "@arke-systems/beacon",
+  "name": "@arkebcacy/beacon",
   "packageManager": "yarn@4.12.0",
-  "repository": "github:Arke-Systems/beacon",
+  "repository": "github:ArkeBcacy/qorvo-beacon",
   "scripts": {
     "build": "node ./build/build.js",
     "clean": "node ./build/clean.js",
@@ -31,10 +31,10 @@
     "lint": "eslint",
     "pretty": "prettier --check .",
     "pretty:fix": "prettier --write .",
-    "test": "yarn workspace @arke-systems/beacon-test vitest"
+    "test": "yarn workspace @arkebcacy/beacon-test vitest"
   },
   "type": "module",
-  "version": "1.11.4",
+  "version": "0.1.0",
   "workspaces": [
     "cli",
     "test"
