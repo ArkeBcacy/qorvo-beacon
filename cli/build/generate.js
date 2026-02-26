@@ -17,7 +17,7 @@ const result = spawnSync(
 	'yarn',
 	[
 		'workspace',
-		'@arke-systems/beacon-cli',
+		'@arkebcacy/beacon-cli',
 		'openapi-typescript',
 		managementOpenApi,
 		'--output',
