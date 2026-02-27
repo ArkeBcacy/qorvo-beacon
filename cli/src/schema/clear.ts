@@ -6,6 +6,8 @@ import deleteFolder from '#cli/cs/assets/deleteFolder.js';
 import indexAssets from '#cli/cs/assets/index.js';
 import deleteContentType from '#cli/cs/content-types/delete.js';
 import indexContentTypes from '#cli/cs/content-types/index.js';
+import deleteEntry from '#cli/cs/entries/delete.js';
+import indexEntries from '#cli/cs/entries/index.js';
 import deleteGlobalField from '#cli/cs/global-fields/delete.js';
 import indexGlobalFields from '#cli/cs/global-fields/index.js';
 import deleteTaxonomy from '#cli/cs/taxonomies/delete.js';
@@ -18,13 +20,52 @@ export default async function clear(
 	client: Client,
 	ui: UiContext,
 	deleteAssets = false,
+	contentTypes: string[] = [],
 ) {
+	// If specific content types are provided, only delete entries for those types
+	if (contentTypes.length > 0) {
+		await deleteEntriesForContentTypes(client, ui, contentTypes);
+		return;
+	}
+
+	// Otherwise, delete everything (original behavior)
 	await Promise.allSettled([
 		deleteAllContentTypes(client, ui),
 		deleteAllGlobalFields(client, ui),
 		deleteAllTaxonomies(client, ui),
 		deleteAllAssets(client, ui, deleteAssets),
 	]);
+}
+
+async function deleteEntriesForContentTypes(
+	client: Client,
+	ui: UiContext,
+	contentTypeUids: string[],
+) {
+	// Get all content types to find the ones we need
+	const allContentTypes = await indexContentTypes(client);
+	const globalFields = await indexGlobalFields(client);
+
+	// Filter to only the requested content types
+	const contentTypesToClear = contentTypeUids
+		.map((uid) => allContentTypes.get(uid))
+		.filter((ct) => ct !== undefined);
+
+	if (contentTypesToClear.length === 0) {
+		ui.warn('No matching content types found for the specified UIDs.');
+		return;
+	}
+
+	// Delete entries for each content type
+	for (const contentType of contentTypesToClear) {
+		await deleteAll(
+			ui,
+			`${contentType.title} Entries`,
+			(entry) => entry.title,
+			async () => indexEntries(client, globalFields, contentType),
+			async (entry) => deleteEntry(client, contentType.uid, entry.uid),
+		);
+	}
 }
 
 async function deleteAll<T>(

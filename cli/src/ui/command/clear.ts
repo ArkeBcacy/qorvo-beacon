@@ -16,9 +16,12 @@ const clear = new Command('clear');
 
 addCommonOptions(clear);
 clear.addOption(Options.deleteAssets);
+clear.addOption(Options.contentTypes);
 clear.description('Empty all data from a stack.');
 
-type CommandOptions = CommonOptions & Options.DeleteAssetsOption;
+type CommandOptions = CommonOptions &
+	Options.ContentTypesOption &
+	Options.DeleteAssetsOption;
 
 clear.action(async (cliOptions: CommandOptions) =>
 	HandledError.ExitIfThrown(async () => {
@@ -28,7 +31,12 @@ clear.action(async (cliOptions: CommandOptions) =>
 
 		const histogram = await Store.run(ui, async () => {
 			await using client = createClient(ui);
-			await clearJob(client, ui, cliOptions.deleteAssets);
+			await clearJob(
+				client,
+				ui,
+				cliOptions.deleteAssets,
+				cliOptions.contentTypes,
+			);
 			return client.performance;
 		});
 
