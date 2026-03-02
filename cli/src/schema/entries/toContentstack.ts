@@ -215,26 +215,46 @@ async function updateAllLocales(
 
 	await Promise.all(localeEnsurePromises);
 
-	// Import all locale versions in parallel for better performance
-	const importPromises = fsLocaleVersions.map(async (localeVersion) => {
+	// Import locales sequentially: default locale first, then others
+	// This is required because Contentstack needs the entry to exist in the default
+	// locale before additional locale versions can be added.
+	const defaultLocaleVersion = fsLocaleVersions.find(
+		(lv) => lv.locale === 'default',
+	);
+	const otherLocaleVersions = fsLocaleVersions.filter(
+		(lv) => lv.locale !== 'default',
+	);
+
+	// Import default locale first (if it exists)
+	if (defaultLocaleVersion) {
+		const transformed = transformer.process(defaultLocaleVersion.entry);
+		const overwrite = csLocaleSet.size > 0;
+
+		// When there are multiple locales, explicitly use 'en-us' for the default locale
+		// Contentstack requires the master locale to be specified when adding translations
+		const localeCode = otherLocaleVersions.length > 0 ? 'en-us' : undefined;
+
+		await importEntry(
+			ctx.cs.client,
+			contentType.uid,
+			{ ...transformed, uid: entryUid },
+			overwrite,
+			localeCode,
+		);
+	}
+
+	// Then import other locales in parallel
+	const otherImportPromises = otherLocaleVersions.map(async (localeVersion) => {
 		const transformed = transformer.process(localeVersion.entry);
-
-		// Pass undefined for 'default' locale (single-locale backward compat)
-		const locale =
-			localeVersion.locale === 'default' ? undefined : localeVersion.locale;
-
-		// Always use overwrite=true for locale-specific versions since the entry exists.
-		// For 'default' locale (single-locale backward compat), only overwrite if entry has locales.
-		const overwrite = locale ? true : csLocaleSet.size > 0;
 
 		return importEntry(
 			ctx.cs.client,
 			contentType.uid,
 			{ ...transformed, uid: entryUid },
-			overwrite,
-			locale,
+			true, // always overwrite for additional locales
+			localeVersion.locale,
 		);
 	});
 
-	await Promise.all(importPromises);
+	await Promise.all(otherImportPromises);
 }

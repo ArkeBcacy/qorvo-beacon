@@ -39,14 +39,14 @@ async function loadContentTypeEntries(
 		for (const [entryTitle, localeMap] of entriesByTitle.entries()) {
 			const preferredEntry = selectPreferredLocale(localeMap);
 			if (preferredEntry) {
-				// Preserve Contentstack UIDs (starting with 'blt'), otherwise use synthetic UID
-				const entryUid = preferredEntry.uid;
-				const uid =
-					typeof entryUid === 'string' && entryUid.startsWith('blt')
-						? entryUid
-						: `file: ${entryTitle}`;
+				// Always use synthetic UID based on title for filesystem entries.
+				// This ensures entries are matched by title, not UID, since UIDs
+				// from the filesystem may not match server UIDs after pull/push cycles.
+				const uid = `file: ${entryTitle}`;
+				// Omit any uid field from the entry to prevent conflicts
+				const { uid: _omittedUid, ...entryWithoutUid } = preferredEntry;
 				entriesSet.add({
-					...preferredEntry,
+					...entryWithoutUid,
 					title: entryTitle, // Use filename-based title for consistency
 					uid,
 				});

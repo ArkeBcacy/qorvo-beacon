@@ -66,7 +66,24 @@ export default async function loadEntryLocales(
 		throw error;
 	}
 
-	return results;
+	// Sort results to ensure 'default' locale comes first, followed by 'en-us',
+	// then all others. This is critical because Contentstack requires creating
+	// entries in the default locale before adding additional locale versions.
+	return results.sort((a, b) => {
+		if (a.locale === 'default') {
+			return -1;
+		}
+		if (b.locale === 'default') {
+			return 1;
+		}
+		if (a.locale === 'en-us' || a.locale === 'en') {
+			return -1;
+		}
+		if (b.locale === 'en-us' || b.locale === 'en') {
+			return 1;
+		}
+		return a.locale.localeCompare(b.locale);
+	});
 }
 
 function createMultiLocalePattern(baseFilename: string): RegExp {
