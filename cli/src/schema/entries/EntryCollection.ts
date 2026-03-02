@@ -43,7 +43,7 @@ export default class EntryCollection implements ReadonlyEntryCollection {
 	public constructor(initial: ReadonlyMap<ContentType, ReadonlySet<Entry>>) {
 		for (const [contentType, entries] of initial) {
 			const byTitle = new Map<Entry['title'], Entry>();
-			const duplicates: Array<{ title: string; uids: string[] }> = [];
+			const duplicates: { title: string; uids: string[] }[] = [];
 
 			for (const entry of entries) {
 				this.#byTypedUid.set(`${contentType.uid}/${entry.uid}`, entry);
@@ -68,8 +68,9 @@ export default class EntryCollection implements ReadonlyEntryCollection {
 			// Warn about duplicate titles
 			if (duplicates.length > 0) {
 				for (const dup of duplicates) {
+					// eslint-disable-next-line no-console -- User-facing diagnostic warning about duplicate entry titles
 					console.warn(
-						`⚠ Warning: Multiple entries found with title "${dup.title}" in ${contentType.uid}:\n` +
+						`Warning: Multiple entries found with title "${dup.title}" in ${contentType.uid}:\n` +
 							`  UIDs: ${dup.uids.join(', ')}\n` +
 							`  Only the last entry (${dup.uids[dup.uids.length - 1]}) will be used for title matching.\n` +
 							`  This may cause "title is not unique" errors. Please delete duplicate entries.`,

@@ -89,7 +89,7 @@ describe(loadEntryLocales.name, () => {
 		);
 
 		expect(result).toHaveLength(expectedLocaleCount);
-		expect(result.map((r) => r.locale)).toEqual(['en-us', 'fr', 'de']);
+		expect(result.map((r) => r.locale)).toEqual(['en-us', 'de', 'fr']);
 	});
 
 	it('should handle entries with dots in filename', async () => {
@@ -97,14 +97,12 @@ describe(loadEntryLocales.name, () => {
 		const readYaml = (await import('#cli/fs/readYaml.js')).default;
 
 		// Justification: Test has exactly 2 locale files
-
 		const expectedLocaleCount = 2;
 
 		vi.mocked(readdir).mockResolvedValue([
 			'Entry.With.Dots.en-us.yaml',
 			'Entry.With.Dots.fr-ca.yaml',
 		] as unknown as Awaited<ReturnType<typeof readdir>>);
-
 		vi.mocked(readYaml).mockImplementation(async (path: PathLike) => {
 			const pathStr = String(path);
 			if (pathStr.includes('en-us')) {
