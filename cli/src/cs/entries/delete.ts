@@ -8,6 +8,7 @@ export default async function deleteEntry(
 	client: Client,
 	contentTypeUid: string,
 	entryUid: string,
+	deleteAllLocalized = true,
 ) {
 	const result = await client.DELETE(
 		'/v3/content_types/{content_type_uid}/entries/{entry_uid}',
@@ -16,6 +17,9 @@ export default async function deleteEntry(
 				path: {
 					content_type_uid: contentTypeUid,
 					entry_uid: entryUid,
+				},
+				query: {
+					...(deleteAllLocalized ? { delete_all_localized: 'true' } : {}),
 				},
 			},
 		},

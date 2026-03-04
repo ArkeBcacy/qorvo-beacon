@@ -185,23 +185,26 @@ In practice, Contentstack's Import API appears to handle locale versions indepen
 
 ## Deleting Entries with Localized Versions
 
-**What happens**: When an entry is deleted, all localized versions are automatically deleted.
+**What happens**: When an entry is deleted, all localized versions are deleted only when explicitly requested.
 
 **Implementation**: The delete operation ([`delete.ts`](../../cli/src/cs/entries/delete.ts)) calls:
 
 ```typescript
 client.DELETE('/v3/content_types/{content_type_uid}/entries/{entry_uid}', {
-  params: { path: { content_type_uid, entry_uid } },
+  params: {
+    path: { content_type_uid, entry_uid },
+    query: { delete_all_localized: 'true' },
+  },
 });
 ```
 
-This deletes the entry identified by `entry_uid`. Since all locale versions share the same UID, they are all deleted together.
+This deletes the entry identified by `entry_uid` and all its locale versions.
 
-**API Note**: The Contentstack API includes a `delete_all_localized` query parameter (see [`cma-openapi-3.d.ts`](../../cli/src/cs/api/cma-openapi-3.d.ts) line 6248), but:
+**API Note**: The Contentstack API includes a `delete_all_localized` query parameter (see [`cma-openapi-3.d.ts`](../../cli/src/cs/api/cma-openapi-3.d.ts) line 6248):
 
-- It defaults to `true` (delete all localized versions)
-- Beacon does not explicitly set this parameter (uses the default)
-- The behavior is what we want: deleting an entry removes all its locale versions
+- By default (when not specified), only the master locale version is deleted
+- Setting `delete_all_localized: 'true'` deletes all localized versions
+- Beacon explicitly sets this parameter to ensure all locale versions are removed together
 
 **Filesystem cleanup**: When an entry is removed during pull operations ([`toFilesystem.ts`](../../cli/src/schema/entries/toFilesystem.ts) lines 130-148):
 
