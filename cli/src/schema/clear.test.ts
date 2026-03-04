@@ -8,9 +8,11 @@ import clear from './clear.js';
 vi.mock('#cli/cs/content-types/index.js');
 vi.mock('#cli/cs/content-types/delete.js');
 vi.mock('#cli/cs/entries/index.js');
+vi.mock('#cli/cs/entries/indexEntriesForLocale.js');
 vi.mock('#cli/cs/entries/delete.js');
 vi.mock('#cli/cs/global-fields/index.js');
 vi.mock('#cli/cs/global-fields/delete.js');
+vi.mock('#cli/cs/locales/getLocales.js');
 vi.mock('#cli/cs/taxonomies/index.js');
 vi.mock('#cli/cs/taxonomies/delete.js');
 vi.mock('#cli/cs/assets/index.js');
@@ -22,6 +24,7 @@ describe('clear', () => {
 	let mockUi: UiContext;
 
 	beforeEach(() => {
+		vi.clearAllMocks();
 		mockClient = {} as Client;
 		mockUi = {
 			createProgressBar: vi.fn().mockReturnValue({
@@ -65,8 +68,10 @@ describe('clear', () => {
 		it('should only delete entries for specified content types', async () => {
 			const indexContentTypes = await import('#cli/cs/content-types/index.js');
 			const indexGlobalFields = await import('#cli/cs/global-fields/index.js');
-			const indexEntries = await import('#cli/cs/entries/index.js');
+			const indexEntriesForLocale =
+				await import('#cli/cs/entries/indexEntriesForLocale.js');
 			const deleteEntry = await import('#cli/cs/entries/delete.js');
+			const { getLocales } = await import('#cli/cs/locales/getLocales.js');
 
 			const mockContentType: ContentType = {
 				title: 'Test Content Type',
@@ -82,8 +87,12 @@ describe('clear', () => {
 				new Map([['test_ct', mockContentType]]),
 			);
 			vi.mocked(indexGlobalFields.default).mockResolvedValue(new Map());
-			vi.mocked(indexEntries.default).mockResolvedValue(
-				new Map([['Test Entry', mockEntry]]),
+			vi.mocked(getLocales).mockResolvedValue([
+				{ code: 'en-us', name: 'English', uid: 'blt_en' },
+				{ code: 'zh-cn', name: 'Chinese', uid: 'blt_zh' },
+			]);
+			vi.mocked(indexEntriesForLocale.default).mockResolvedValue(
+				new Map([['blt123', mockEntry]]),
 			);
 			vi.mocked(deleteEntry.default).mockResolvedValue();
 
@@ -91,11 +100,22 @@ describe('clear', () => {
 
 			expect(indexContentTypes.default).toHaveBeenCalled();
 			expect(indexGlobalFields.default).toHaveBeenCalled();
-			expect(indexEntries.default).toHaveBeenCalledWith(
+			expect(getLocales).toHaveBeenCalledWith(mockClient);
+			// Should fetch entries for both locales
+			expect(indexEntriesForLocale.default).toHaveBeenCalledWith(
 				mockClient,
 				expect.any(Map),
 				mockContentType,
+				'en-us',
 			);
+			expect(indexEntriesForLocale.default).toHaveBeenCalledWith(
+				mockClient,
+				expect.any(Map),
+				mockContentType,
+				'zh-cn',
+			);
+			// Should delete the entry once (deduplication by UID)
+			expect(deleteEntry.default).toHaveBeenCalledTimes(1);
 			expect(deleteEntry.default).toHaveBeenCalledWith(
 				mockClient,
 				'test_ct',
@@ -106,9 +126,13 @@ describe('clear', () => {
 		it('should warn when no matching content types found', async () => {
 			const indexContentTypes = await import('#cli/cs/content-types/index.js');
 			const indexGlobalFields = await import('#cli/cs/global-fields/index.js');
+			const { getLocales } = await import('#cli/cs/locales/getLocales.js');
 
 			vi.mocked(indexContentTypes.default).mockResolvedValue(new Map());
 			vi.mocked(indexGlobalFields.default).mockResolvedValue(new Map());
+			vi.mocked(getLocales).mockResolvedValue([
+				{ code: 'en-us', name: 'English', uid: 'blt_en' },
+			]);
 
 			await clear(mockClient, mockUi, false, ['non_existent']);
 
@@ -120,7 +144,9 @@ describe('clear', () => {
 		it('should handle multiple content types', async () => {
 			const indexContentTypes = await import('#cli/cs/content-types/index.js');
 			const indexGlobalFields = await import('#cli/cs/global-fields/index.js');
-			const indexEntries = await import('#cli/cs/entries/index.js');
+			const indexEntriesForLocale =
+				await import('#cli/cs/entries/indexEntriesForLocale.js');
+			const { getLocales } = await import('#cli/cs/locales/getLocales.js');
 
 			const mockContentType1: ContentType = {
 				title: 'Content Type 1',
@@ -139,19 +165,74 @@ describe('clear', () => {
 				]),
 			);
 			vi.mocked(indexGlobalFields.default).mockResolvedValue(new Map());
-			vi.mocked(indexEntries.default).mockResolvedValue(new Map());
+			vi.mocked(getLocales).mockResolvedValue([
+				{ code: 'en-us', name: 'English', uid: 'blt_en' },
+			]);
+			vi.mocked(indexEntriesForLocale.default).mockResolvedValue(new Map());
 
 			await clear(mockClient, mockUi, false, ['ct1', 'ct2']);
 
-			expect(indexEntries.default).toHaveBeenCalledWith(
+			expect(indexEntriesForLocale.default).toHaveBeenCalledWith(
 				mockClient,
 				expect.any(Map),
 				mockContentType1,
+				'en-us',
 			);
-			expect(indexEntries.default).toHaveBeenCalledWith(
+			expect(indexEntriesForLocale.default).toHaveBeenCalledWith(
 				mockClient,
 				expect.any(Map),
 				mockContentType2,
+				'en-us',
+			);
+		});
+
+		it('should deduplicate entries across locales', async () => {
+			const indexContentTypes = await import('#cli/cs/content-types/index.js');
+			const indexGlobalFields = await import('#cli/cs/global-fields/index.js');
+			const indexEntriesForLocale =
+				await import('#cli/cs/entries/indexEntriesForLocale.js');
+			const deleteEntry = await import('#cli/cs/entries/delete.js');
+			const { getLocales } = await import('#cli/cs/locales/getLocales.js');
+
+			const mockContentType: ContentType = {
+				title: 'Test Content Type',
+				uid: 'test_ct',
+			} as ContentType;
+
+			const mockEntry: Entry = {
+				title: 'Test Entry',
+				uid: 'blt123',
+			} as Entry;
+
+			const mockEntryZh: Entry = {
+				title: 'Test Entry (Chinese)',
+				uid: 'blt123', // Same UID as English version
+			} as Entry;
+
+			vi.mocked(indexContentTypes.default).mockResolvedValue(
+				new Map([['test_ct', mockContentType]]),
+			);
+			vi.mocked(indexGlobalFields.default).mockResolvedValue(new Map());
+			vi.mocked(getLocales).mockResolvedValue([
+				{ code: 'en-us', name: 'English', uid: 'blt_en' },
+				{ code: 'zh-cn', name: 'Chinese', uid: 'blt_zh' },
+			]);
+
+			// Return the same entry UID for both locales (simulating the same entry in multiple locales)
+			vi.mocked(indexEntriesForLocale.default)
+				.mockResolvedValueOnce(new Map([['blt123', mockEntry]]))
+				.mockResolvedValueOnce(new Map([['blt123', mockEntryZh]]));
+
+			vi.mocked(deleteEntry.default).mockResolvedValue();
+
+			await clear(mockClient, mockUi, false, ['test_ct']);
+
+			// Should only delete once, even though the entry appears in two locales
+			expect(deleteEntry.default).toHaveBeenCalledTimes(1);
+			expect(deleteEntry.default).toHaveBeenCalledWith(
+				mockClient,
+				'test_ct',
+				'blt123',
 			);
 		});
 	});

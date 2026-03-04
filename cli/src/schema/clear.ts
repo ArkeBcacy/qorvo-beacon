@@ -4,14 +4,18 @@ import { isRawAsset } from '#cli/cs/assets/Types.js';
 import deleteAsset from '#cli/cs/assets/delete.js';
 import deleteFolder from '#cli/cs/assets/deleteFolder.js';
 import indexAssets from '#cli/cs/assets/index.js';
+import type { ContentType } from '#cli/cs/content-types/Types.js';
 import deleteContentType from '#cli/cs/content-types/delete.js';
 import indexContentTypes from '#cli/cs/content-types/index.js';
 import deleteEntry from '#cli/cs/entries/delete.js';
-import indexEntries from '#cli/cs/entries/index.js';
+import indexEntriesForLocale from '#cli/cs/entries/indexEntriesForLocale.js';
+import type { Entry } from '#cli/cs/entries/Types.js';
 import deleteGlobalField from '#cli/cs/global-fields/delete.js';
 import indexGlobalFields from '#cli/cs/global-fields/index.js';
+import { getLocales } from '#cli/cs/locales/getLocales.js';
 import deleteTaxonomy from '#cli/cs/taxonomies/delete.js';
 import indexTaxonomies from '#cli/cs/taxonomies/index.js';
+import type { Schema } from '#cli/cs/Types.js';
 import type UiContext from '#cli/ui/UiContext.js';
 import ProgressReporter from '../ui/progress/ProgressReporter.js';
 import resolveItemPath from './assets/lib/resolveItemPath.js';
@@ -56,16 +60,48 @@ async function deleteEntriesForContentTypes(
 		return;
 	}
 
+	// Get all locales to ensure we fetch entries from all locale versions
+	const locales = await getLocales(client);
+
 	// Delete entries for each content type
 	for (const contentType of contentTypesToClear) {
 		await deleteAll(
 			ui,
 			`${contentType.title} Entries`,
 			(entry) => entry.title,
-			async () => indexEntries(client, globalFields, contentType),
+			async () =>
+				indexEntriesForAllLocales(client, globalFields, contentType, locales),
 			async (entry) => deleteEntry(client, contentType.uid, entry.uid),
 		);
 	}
+}
+
+async function indexEntriesForAllLocales(
+	client: Client,
+	globalFields: ReadonlyMap<Schema['uid'], Schema>,
+	contentType: ContentType,
+	locales: readonly { code: string }[],
+): Promise<ReadonlyMap<string, Entry>> {
+	// Fetch entries from all locales
+	const entriesPerLocale = await Promise.all(
+		locales.map(async (locale) =>
+			indexEntriesForLocale(client, globalFields, contentType, locale.code),
+		),
+	);
+
+	// Merge all entries, deduplicating by UID
+	// Since the same entry can exist in multiple locales with the same UID,
+	// we only need to keep one instance per UID for deletion purposes
+	const uniqueEntries = new Map<string, Entry>();
+	for (const entriesMap of entriesPerLocale) {
+		for (const [uid, entry] of entriesMap) {
+			if (!uniqueEntries.has(uid)) {
+				uniqueEntries.set(uid, entry);
+			}
+		}
+	}
+
+	return uniqueEntries;
 }
 
 async function deleteAll<T>(
