@@ -94,7 +94,10 @@ describe('clear', () => {
 			vi.mocked(indexEntriesForLocale.default).mockResolvedValue(
 				new Map([['blt123', mockEntry]]),
 			);
-			vi.mocked(deleteEntry.default).mockResolvedValue();
+			vi.mocked(deleteEntry.default).mockResolvedValue({
+				deleted: true,
+				notFound: false,
+			} as Awaited<ReturnType<typeof deleteEntry.default>>);
 
 			await clear(mockClient, mockUi, false, ['test_ct']);
 
@@ -225,7 +228,10 @@ describe('clear', () => {
 				.mockResolvedValueOnce(new Map([['blt123', mockEntry]]))
 				.mockResolvedValueOnce(new Map([['blt123', mockEntryZh]]));
 
-			vi.mocked(deleteEntry.default).mockResolvedValue();
+			vi.mocked(deleteEntry.default).mockResolvedValue({
+				deleted: true,
+				notFound: false,
+			} as Awaited<ReturnType<typeof deleteEntry.default>>);
 
 			await clear(mockClient, mockUi, false, ['test_ct']);
 
@@ -270,7 +276,10 @@ describe('clear', () => {
 			vi.mocked(indexEntriesForLocale.default).mockResolvedValue(
 				new Map([['blt123', mockEntry]]),
 			);
-			vi.mocked(deleteEntry.default).mockResolvedValue();
+			vi.mocked(deleteEntry.default).mockResolvedValue({
+				deleted: true,
+				notFound: false,
+			} as Awaited<ReturnType<typeof deleteEntry.default>>);
 
 			await clear(mockClient, mockUi, false, ['test_ct']);
 

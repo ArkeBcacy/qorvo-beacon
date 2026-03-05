@@ -11,7 +11,13 @@ describe('deleteEntry', () => {
 			}),
 		} as unknown as Client;
 
-		await deleteEntry(mockClient, 'test_content_type', 'blt123456');
+		const result = await deleteEntry(
+			mockClient,
+			'test_content_type',
+			'blt123456',
+		);
+
+		expect(result).toEqual({ deleted: true, notFound: false });
 
 		expect(mockClient.DELETE).toHaveBeenCalledWith(
 			'/v3/content_types/{content_type_uid}/entries/{entry_uid}',
@@ -37,7 +43,14 @@ describe('deleteEntry', () => {
 			}),
 		} as unknown as Client;
 
-		await deleteEntry(mockClient, 'test_content_type', 'blt123456', true);
+		const result = await deleteEntry(
+			mockClient,
+			'test_content_type',
+			'blt123456',
+			true,
+		);
+
+		expect(result).toEqual({ deleted: true, notFound: false });
 
 		expect(mockClient.DELETE).toHaveBeenCalledWith(
 			'/v3/content_types/{content_type_uid}/entries/{entry_uid}',
@@ -63,7 +76,14 @@ describe('deleteEntry', () => {
 			}),
 		} as unknown as Client;
 
-		await deleteEntry(mockClient, 'test_content_type', 'blt123456', false);
+		const result = await deleteEntry(
+			mockClient,
+			'test_content_type',
+			'blt123456',
+			false,
+		);
+
+		expect(result).toEqual({ deleted: true, notFound: false });
 
 		expect(mockClient.DELETE).toHaveBeenCalledWith(
 			'/v3/content_types/{content_type_uid}/entries/{entry_uid}',
@@ -87,13 +107,15 @@ describe('deleteEntry', () => {
 			}),
 		} as unknown as Client;
 
-		await deleteEntry(
+		const result = await deleteEntry(
 			mockClient,
 			'test_content_type',
 			'blt123456',
 			true,
 			'zh-cn',
 		);
+
+		expect(result).toEqual({ deleted: true, notFound: false });
 
 		expect(mockClient.DELETE).toHaveBeenCalledWith(
 			'/v3/content_types/{content_type_uid}/entries/{entry_uid}',
@@ -120,10 +142,14 @@ describe('deleteEntry', () => {
 			}),
 		} as unknown as Client;
 
-		// Should not throw when entry is not found
-		await expect(
-			deleteEntry(mockClient, 'test_content_type', 'blt123456'),
-		).resolves.not.toThrow();
+		// Should not throw when entry is not found, but return notFound flag
+		const result = await deleteEntry(
+			mockClient,
+			'test_content_type',
+			'blt123456',
+		);
+
+		expect(result).toEqual({ deleted: false, notFound: true });
 	});
 
 	it('should throw error when API returns other errors', async () => {

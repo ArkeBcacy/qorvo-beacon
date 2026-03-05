@@ -37,7 +37,7 @@
     "version:major": "yarn version major && yarn workspace @arkebcacy/beacon-cli version major"
   },
   "type": "module",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "workspaces": [
     "cli",
     "test"

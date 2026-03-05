@@ -41,8 +41,9 @@ export default async function toContentstack(
 		deletionStrategy: ui.options.schema.deletionStrategy,
 		plan: planMerge(equality, fsEntriesByTitle, csEntriesByTitle),
 		progress: bar,
-		remove: async (entry) =>
-			deleteEntry(ctx.cs.client, contentType.uid, entry.uid),
+		remove: async (entry) => {
+			await deleteEntry(ctx.cs.client, contentType.uid, entry.uid);
+		},
 		update,
 	});
 

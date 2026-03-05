@@ -65,20 +65,92 @@ async function deleteEntriesForContentTypes(
 
 	// Delete entries for each content type
 	for (const contentType of contentTypesToClear) {
-		await deleteAll(
+		await deleteEntriesForContentType(
+			client,
 			ui,
-			`${contentType.title} Entries`,
-			(entry) => entry.title,
-			async () =>
-				indexEntriesForAllLocales(client, globalFields, contentType, locales),
-			async (entry) => {
-				// Use the locale we fetched the entry from to ensure the API can find it
-				// This is critical because entries may not exist in the default locale
-				const locale = entry._fetchedFromLocale;
-				return deleteEntry(client, contentType.uid, entry.uid, true, locale);
-			},
+			contentType,
+			globalFields,
+			locales,
 		);
 	}
+}
+
+async function deleteEntriesForContentType(
+	client: Client,
+	ui: UiContext,
+	contentType: ContentType,
+	globalFields: ReadonlyMap<Schema['uid'], Schema>,
+	locales: readonly { code: string }[],
+) {
+	const orphanedEntries: { uid: string; title: string }[] = [];
+
+	await deleteAll(
+		ui,
+		`${contentType.title} Entries`,
+		(entry) => entry.title,
+		async () =>
+			indexEntriesForAllLocales(client, globalFields, contentType, locales),
+		async (entry) => {
+			// Use the locale we fetched the entry from to ensure the API can find it
+			// This is critical because entries may not exist in the default locale
+			const locale = entry._fetchedFromLocale;
+			const result = await deleteEntry(
+				client,
+				contentType.uid,
+				entry.uid,
+				true,
+				locale,
+			);
+
+			if (result.notFound) {
+				// Entry appeared in listing but can't be deleted - try alternative strategies
+				orphanedEntries.push({ title: entry.title, uid: entry.uid });
+
+				// Try without locale parameter
+				const retryResult = await deleteEntry(
+					client,
+					contentType.uid,
+					entry.uid,
+					true,
+				);
+
+				if (!retryResult.notFound) {
+					// Successfully deleted without locale param
+					orphanedEntries.pop(); // Remove from orphaned list
+				}
+			}
+		},
+	);
+
+	reportOrphanedEntries(ui, contentType.title, orphanedEntries);
+}
+
+function reportOrphanedEntries(
+	ui: UiContext,
+	contentTypeName: string,
+	orphanedEntries: { uid: string; title: string }[],
+) {
+	if (orphanedEntries.length === 0) {
+		return;
+	}
+
+	const maxOrphanedToDisplay = 5;
+
+	ui.warn(
+		`Warning: Found ${orphanedEntries.length} orphaned/corrupted ${contentTypeName} entries that could not be deleted:`,
+	);
+	for (const entry of orphanedEntries.slice(0, maxOrphanedToDisplay)) {
+		ui.warn(`  - "${entry.title}" (${entry.uid})`);
+	}
+	if (orphanedEntries.length > maxOrphanedToDisplay) {
+		ui.warn(`  ... and ${orphanedEntries.length - maxOrphanedToDisplay} more`);
+	}
+	ui.warn(
+		'These entries appear in the listing API but return "not found" when attempting to delete.',
+	);
+	ui.warn(
+		'You may need to contact Contentstack support to clean up these orphaned entries.',
+	);
 }
 
 async function indexEntriesForAllLocales(
