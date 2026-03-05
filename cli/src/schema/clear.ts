@@ -72,10 +72,9 @@ async function deleteEntriesForContentTypes(
 			async () =>
 				indexEntriesForAllLocales(client, globalFields, contentType, locales),
 			async (entry) => {
-				// Pass the entry's locale to ensure it can be found and deleted
-				// even if it doesn't exist in the default locale
-				const locale =
-					typeof entry.locale === 'string' ? entry.locale : undefined;
+				// Use the locale we fetched the entry from to ensure the API can find it
+				// This is critical because entries may not exist in the default locale
+				const locale = entry._fetchedFromLocale;
 				return deleteEntry(client, contentType.uid, entry.uid, true, locale);
 			},
 		);
@@ -87,22 +86,33 @@ async function indexEntriesForAllLocales(
 	globalFields: ReadonlyMap<Schema['uid'], Schema>,
 	contentType: ContentType,
 	locales: readonly { code: string }[],
-): Promise<ReadonlyMap<string, Entry>> {
-	// Fetch entries from all locales
-	const entriesPerLocale = await Promise.all(
-		locales.map(async (locale) =>
-			indexEntriesForLocale(client, globalFields, contentType, locale.code),
-		),
+): Promise<ReadonlyMap<string, Entry & { _fetchedFromLocale: string }>> {
+	// Fetch entries from all locales, tracking which locale each was fetched from
+	const entriesWithLocale = await Promise.all(
+		locales.map(async (locale) => {
+			const entries = await indexEntriesForLocale(
+				client,
+				globalFields,
+				contentType,
+				locale.code,
+			);
+			// Tag each entry with the locale it was fetched from
+			return { locale: locale.code, entries };
+		}),
 	);
 
 	// Merge all entries, deduplicating by UID
 	// Since the same entry can exist in multiple locales with the same UID,
 	// we only need to keep one instance per UID for deletion purposes
-	const uniqueEntries = new Map<string, Entry>();
-	for (const entriesMap of entriesPerLocale) {
-		for (const [uid, entry] of entriesMap) {
+	// We preserve the locale it was fetched from so we can use it for deletion
+	const uniqueEntries = new Map<
+		string,
+		Entry & { _fetchedFromLocale: string }
+	>();
+	for (const { locale, entries } of entriesWithLocale) {
+		for (const [uid, entry] of entries) {
 			if (!uniqueEntries.has(uid)) {
-				uniqueEntries.set(uid, entry);
+				uniqueEntries.set(uid, { ...entry, _fetchedFromLocale: locale });
 			}
 		}
 	}

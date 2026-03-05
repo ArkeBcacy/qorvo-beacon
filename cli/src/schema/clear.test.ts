@@ -121,7 +121,7 @@ describe('clear', () => {
 				'test_ct',
 				'blt123',
 				true,
-				undefined, // locale is undefined since mockEntry doesn't have a locale property
+				'en-us', // locale from the first fetch where this entry was found
 			);
 		});
 
@@ -236,11 +236,11 @@ describe('clear', () => {
 				'test_ct',
 				'blt123',
 				true,
-				undefined, // locale is undefined since mockEntry doesn't have a locale property
+				'en-us', // locale from the first fetch where this entry was found
 			);
 		});
 
-		it('should pass entry locale when deleting entries', async () => {
+		it('should use the locale from which the entry was fetched', async () => {
 			const indexContentTypes = await import('#cli/cs/content-types/index.js');
 			const indexGlobalFields = await import('#cli/cs/global-fields/index.js');
 			const indexEntriesForLocale =
@@ -274,13 +274,13 @@ describe('clear', () => {
 
 			await clear(mockClient, mockUi, false, ['test_ct']);
 
-			// Should pass the locale from the entry
+			// Should pass the locale from which the entry was fetched
 			expect(deleteEntry.default).toHaveBeenCalledWith(
 				mockClient,
 				'test_ct',
 				'blt123',
 				true,
-				'zh-cn', // locale from the entry
+				'zh-cn', // locale from the fetch, not from entry.locale property
 			);
 		});
 	});
