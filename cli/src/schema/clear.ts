@@ -71,7 +71,13 @@ async function deleteEntriesForContentTypes(
 			(entry) => entry.title,
 			async () =>
 				indexEntriesForAllLocales(client, globalFields, contentType, locales),
-			async (entry) => deleteEntry(client, contentType.uid, entry.uid),
+			async (entry) => {
+				// Pass the entry's locale to ensure it can be found and deleted
+				// even if it doesn't exist in the default locale
+				const locale =
+					typeof entry.locale === 'string' ? entry.locale : undefined;
+				return deleteEntry(client, contentType.uid, entry.uid, true, locale);
+			},
 		);
 	}
 }

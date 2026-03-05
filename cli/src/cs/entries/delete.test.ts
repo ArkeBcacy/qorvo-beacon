@@ -79,6 +79,39 @@ describe('deleteEntry', () => {
 		);
 	});
 
+	it('should include locale parameter when provided', async () => {
+		const mockClient = {
+			DELETE: vi.fn().mockResolvedValue({
+				error: undefined,
+				response: { ok: true },
+			}),
+		} as unknown as Client;
+
+		await deleteEntry(
+			mockClient,
+			'test_content_type',
+			'blt123456',
+			true,
+			'zh-cn',
+		);
+
+		expect(mockClient.DELETE).toHaveBeenCalledWith(
+			'/v3/content_types/{content_type_uid}/entries/{entry_uid}',
+			{
+				params: {
+					path: {
+						content_type_uid: 'test_content_type',
+						entry_uid: 'blt123456',
+					},
+					query: {
+						delete_all_localized: 'true',
+						locale: 'zh-cn',
+					},
+				},
+			},
+		);
+	});
+
 	it('should handle entry not found error gracefully', async () => {
 		const mockClient = {
 			DELETE: vi.fn().mockResolvedValue({

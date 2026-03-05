@@ -120,6 +120,8 @@ describe('clear', () => {
 				mockClient,
 				'test_ct',
 				'blt123',
+				true,
+				undefined, // locale is undefined since mockEntry doesn't have a locale property
 			);
 		});
 
@@ -233,6 +235,52 @@ describe('clear', () => {
 				mockClient,
 				'test_ct',
 				'blt123',
+				true,
+				undefined, // locale is undefined since mockEntry doesn't have a locale property
+			);
+		});
+
+		it('should pass entry locale when deleting entries', async () => {
+			const indexContentTypes = await import('#cli/cs/content-types/index.js');
+			const indexGlobalFields = await import('#cli/cs/global-fields/index.js');
+			const indexEntriesForLocale =
+				await import('#cli/cs/entries/indexEntriesForLocale.js');
+			const deleteEntry = await import('#cli/cs/entries/delete.js');
+			const { getLocales } = await import('#cli/cs/locales/getLocales.js');
+
+			const mockContentType: ContentType = {
+				title: 'Test Content Type',
+				uid: 'test_ct',
+			} as ContentType;
+
+			// Entry with a locale property
+			const mockEntry: Entry = {
+				locale: 'zh-cn',
+				title: 'Test Entry',
+				uid: 'blt123',
+			} as Entry;
+
+			vi.mocked(indexContentTypes.default).mockResolvedValue(
+				new Map([['test_ct', mockContentType]]),
+			);
+			vi.mocked(indexGlobalFields.default).mockResolvedValue(new Map());
+			vi.mocked(getLocales).mockResolvedValue([
+				{ code: 'zh-cn', name: 'Chinese', uid: 'blt_zh' },
+			]);
+			vi.mocked(indexEntriesForLocale.default).mockResolvedValue(
+				new Map([['blt123', mockEntry]]),
+			);
+			vi.mocked(deleteEntry.default).mockResolvedValue();
+
+			await clear(mockClient, mockUi, false, ['test_ct']);
+
+			// Should pass the locale from the entry
+			expect(deleteEntry.default).toHaveBeenCalledWith(
+				mockClient,
+				'test_ct',
+				'blt123',
+				true,
+				'zh-cn', // locale from the entry
 			);
 		});
 	});

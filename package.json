@@ -31,10 +31,13 @@
     "lint": "eslint",
     "pretty": "prettier --check .",
     "pretty:fix": "prettier --write .",
-    "test": "yarn workspace @arkebcacy/beacon-test vitest"
+    "test": "yarn workspace @arkebcacy/beacon-test vitest",
+    "version:patch": "yarn version patch && yarn workspace @arkebcacy/beacon-cli version patch",
+    "version:minor": "yarn version minor && yarn workspace @arkebcacy/beacon-cli version minor",
+    "version:major": "yarn version major && yarn workspace @arkebcacy/beacon-cli version major"
   },
   "type": "module",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "workspaces": [
     "cli",
     "test"
