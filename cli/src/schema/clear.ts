@@ -97,7 +97,7 @@ async function indexEntriesForAllLocales(
 				locale.code,
 			);
 			// Tag each entry with the locale it was fetched from
-			return { locale: locale.code, entries };
+			return { entries, locale: locale.code };
 		}),
 	);
 
