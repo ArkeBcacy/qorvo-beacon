@@ -4,10 +4,11 @@ import loadEntryLocales from './loadEntryLocales.js';
 
 // Mock the file system modules
 vi.mock('node:fs/promises', () => ({
+	readFile: vi.fn(),
 	readdir: vi.fn(),
 }));
 
-vi.mock('#cli/fs/readYaml.js', () => ({
+vi.mock('#cli/fs/readSerializedData.js', () => ({
 	default: vi.fn(),
 }));
 
@@ -31,14 +32,15 @@ describe(loadEntryLocales.name, () => {
 
 	it('should load single locale file without suffix', async () => {
 		const { readdir } = await import('node:fs/promises');
-		const readYaml = (await import('#cli/fs/readYaml.js')).default;
+		const readSerializedData = (await import('#cli/fs/readSerializedData.js'))
+			.default;
 
 		vi.mocked(readdir).mockResolvedValue([
 			'test_entry.yaml',
 			'other_entry.yaml',
 		] as unknown as Awaited<ReturnType<typeof readdir>>);
 
-		vi.mocked(readYaml).mockResolvedValue({
+		vi.mocked(readSerializedData).mockResolvedValue({
 			title: 'Test Entry',
 		});
 
@@ -55,7 +57,8 @@ describe(loadEntryLocales.name, () => {
 
 	it('should load multiple locale files for an entry', async () => {
 		const { readdir } = await import('node:fs/promises');
-		const readYaml = (await import('#cli/fs/readYaml.js')).default;
+		const readSerializedData = (await import('#cli/fs/readSerializedData.js'))
+			.default;
 
 		// Justification: Test has exactly 3 locale files
 
@@ -68,7 +71,7 @@ describe(loadEntryLocales.name, () => {
 			'other_entry.yaml',
 		] as unknown as Awaited<ReturnType<typeof readdir>>);
 
-		vi.mocked(readYaml).mockImplementation(async (path: PathLike) => {
+		vi.mocked(readSerializedData).mockImplementation(async (path: PathLike) => {
 			const pathStr = String(path);
 			if (pathStr.includes('en-us')) {
 				return Promise.resolve({ locale: 'en-us', title: 'Test Entry' });
@@ -94,7 +97,8 @@ describe(loadEntryLocales.name, () => {
 
 	it('should handle entries with dots in filename', async () => {
 		const { readdir } = await import('node:fs/promises');
-		const readYaml = (await import('#cli/fs/readYaml.js')).default;
+		const readSerializedData = (await import('#cli/fs/readSerializedData.js'))
+			.default;
 
 		// Justification: Test has exactly 2 locale files
 		const expectedLocaleCount = 2;
@@ -103,7 +107,7 @@ describe(loadEntryLocales.name, () => {
 			'Entry.With.Dots.en-us.yaml',
 			'Entry.With.Dots.fr-ca.yaml',
 		] as unknown as Awaited<ReturnType<typeof readdir>>);
-		vi.mocked(readYaml).mockImplementation(async (path: PathLike) => {
+		vi.mocked(readSerializedData).mockImplementation(async (path: PathLike) => {
 			const pathStr = String(path);
 			if (pathStr.includes('en-us')) {
 				return Promise.resolve({
@@ -132,12 +136,13 @@ describe(loadEntryLocales.name, () => {
 
 	it('should set synthetic uid for filesystem entries', async () => {
 		const { readdir } = await import('node:fs/promises');
-		const readYaml = (await import('#cli/fs/readYaml.js')).default;
+		const readSerializedData = (await import('#cli/fs/readSerializedData.js'))
+			.default;
 
 		vi.mocked(readdir).mockResolvedValue([
 			'test_entry.yaml',
 		] as unknown as Awaited<ReturnType<typeof readdir>>);
-		vi.mocked(readYaml).mockResolvedValue({ title: 'Test Entry' });
+		vi.mocked(readSerializedData).mockResolvedValue({ title: 'Test Entry' });
 
 		const result = await loadEntryLocales(
 			'/test/directory',

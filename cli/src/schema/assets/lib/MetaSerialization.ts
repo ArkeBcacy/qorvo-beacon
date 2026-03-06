@@ -1,5 +1,6 @@
-import readYaml from '#cli/fs/readYaml.js';
-import writeYaml from '#cli/fs/writeYaml.js';
+import readSerializedData from '#cli/fs/readSerializedData.js';
+import writeSerializedData from '#cli/fs/writeSerializedData.js';
+import getUi from '#cli/schema/lib/SchemaUi.js';
 import isRecord from '#cli/util/isRecord.js';
 import { stat } from 'node:fs/promises';
 import type AssetMeta from '../AssetMeta.js';
@@ -27,7 +28,7 @@ export async function load(paths: {
 	readonly metaPath: string;
 }): Promise<AssetMeta> {
 	const [parsed, blobStats] = await Promise.all([
-		readYaml(paths.metaPath),
+		readSerializedData(paths.metaPath),
 		stat(paths.blobPath),
 	]);
 
@@ -47,6 +48,8 @@ export async function load(paths: {
 }
 
 export async function save(assetsPath: string, asset: AssetMeta) {
+	const ui = getUi();
+	const format = ui.options.schema.serializationFormat;
 	const raw: RawMeta = {
 		...(typeof asset.description === 'string'
 			? { description: asset.description }
@@ -57,5 +60,9 @@ export async function save(assetsPath: string, asset: AssetMeta) {
 		title: asset.title,
 	};
 
-	return writeYaml(getMetaPath(assetsPath, asset.itemPath), raw);
+	return writeSerializedData(
+		getMetaPath(assetsPath, asset.itemPath, format),
+		raw,
+		format,
+	);
 }

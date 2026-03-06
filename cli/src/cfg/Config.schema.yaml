@@ -57,6 +57,15 @@ properties:
         type: string
         minLength: 1
 
+      serialization-format:
+        type: string
+        enum: ['yaml', 'json']
+        default: yaml
+        description: |
+          Format for serialized data files. Choose 'json' for compatibility
+          with Contentstack's default export format, or 'yaml' for better
+          readability and multi-line string handling.
+
       assets:
         type: object
         additionalProperties: false

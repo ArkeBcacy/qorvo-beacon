@@ -1,13 +1,16 @@
 import type { ContentType } from '#cli/cs/content-types/Types.js';
 import type { Entry } from '#cli/cs/entries/Types.js';
 import { isEntry } from '#cli/cs/entries/Types.js';
-import readYaml from '#cli/fs/readYaml.js';
+import readSerializedData from '#cli/fs/readSerializedData.js';
+import { getSupportedExtensions } from '#cli/fs/serializationFormat.js';
 import type OmitIndex from '#cli/util/OmitIndex.js';
 import { readdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { extname, resolve } from 'node:path';
 import indexContentTypes from '../content-types/indexFromFilesystem.js';
 import getUi from '../lib/SchemaUi.js';
 import schemaDirectory from './schemaDirectory.js';
+
+const MIN_PARTS_FOR_LOCALE = 2;
 
 export default async function indexAllFsEntries(): Promise<
 	ReadonlyMap<ContentType, ReadonlySet<Entry>>
@@ -31,9 +34,13 @@ async function loadContentTypeEntries(
 
 	try {
 		const files = await readdir(dir);
-		const yamlFiles = files.filter((f) => f.endsWith('.yaml'));
+		const supportedExtensions = getSupportedExtensions();
+		const dataFiles = files.filter((f) => {
+			const ext = extname(f).toLowerCase();
+			return supportedExtensions.includes(ext);
+		});
 
-		const entriesByTitle = await groupEntriesByTitle(dir, yamlFiles);
+		const entriesByTitle = await groupEntriesByTitle(dir, dataFiles);
 
 		// For each entry title, pick one locale version to represent it
 		for (const [entryTitle, localeMap] of entriesByTitle.entries()) {
@@ -77,38 +84,36 @@ async function loadContentTypeEntries(
 function parseFileNameForLocale(
 	file: string,
 ): { entryTitle: string; locale: string } | null {
-	// Try to match multi-locale pattern first: title.locale.yaml
-	const multiLocaleMatch = /^(?<title>.+)\.(?<locale>[^.]+)\.yaml$/u.exec(file);
+	const ext = extname(file);
+	if (!ext) return null;
 
-	if (
-		multiLocaleMatch?.groups?.title &&
-		multiLocaleMatch.groups.locale &&
-		isValidLocaleCode(multiLocaleMatch.groups.locale)
-	) {
-		// Multi-locale file with valid locale code
-		const { title, locale: localeCode } = multiLocaleMatch.groups;
-		return { entryTitle: title, locale: localeCode };
+	const baseName = file.slice(0, -ext.length);
+
+	// Try to match multi-locale pattern first: title.locale.ext
+	const parts = baseName.split('.');
+	if (parts.length >= MIN_PARTS_FOR_LOCALE) {
+		const possibleLocale = parts[parts.length - 1];
+		if (possibleLocale && isValidLocaleCode(possibleLocale)) {
+			// Multi-locale file with valid locale code
+			const title = parts.slice(0, -1).join('.');
+			return { entryTitle: title, locale: possibleLocale };
+		}
 	}
 
-	// Try single-locale pattern: title.yaml
-	const singleLocaleMatch = /^(?<title>.+)\.yaml$/u.exec(file);
-	if (!singleLocaleMatch?.groups?.title) {
-		// Skip files that don't match either pattern
-		return null;
-	}
+	// Single-locale pattern: title.ext
 	return {
-		entryTitle: singleLocaleMatch.groups.title,
+		entryTitle: baseName,
 		locale: 'default', // Use 'default' as locale for backward compatibility
 	};
 }
 
 async function groupEntriesByTitle(
 	dir: string,
-	yamlFiles: readonly string[],
+	dataFiles: readonly string[],
 ): Promise<Map<string, Map<string, FsEntry>>> {
 	const entriesByTitle = new Map<string, Map<string, FsEntry>>();
 
-	for (const file of yamlFiles) {
+	for (const file of dataFiles) {
 		const parsed = parseFileNameForLocale(file);
 		if (!parsed) {
 			continue;
@@ -117,7 +122,10 @@ async function groupEntriesByTitle(
 		const { entryTitle, locale } = parsed;
 
 		const filePath = resolve(dir, file);
-		const data = (await readYaml(filePath)) as Record<string, unknown>;
+		const data = (await readSerializedData(filePath)) as Record<
+			string,
+			unknown
+		>;
 
 		if (!isFsEntry(data)) {
 			continue;

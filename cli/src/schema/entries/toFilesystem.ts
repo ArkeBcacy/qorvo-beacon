@@ -3,7 +3,8 @@ import exportEntryLocale from '#cli/cs/entries/exportEntryLocale.js';
 import getEntryLocales from '#cli/cs/entries/getEntryLocales.js';
 import type { Entry } from '#cli/cs/entries/Types.js';
 import transformEntry from '#cli/dto/entry/fromCs.js';
-import writeYaml from '#cli/fs/writeYaml.js';
+import { getFileExtension } from '#cli/fs/serializationFormat.js';
+import writeSerializedData from '#cli/fs/writeSerializedData.js';
 import getUi from '#cli/schema/lib/SchemaUi.js';
 import sanitize from 'sanitize-filename';
 import escapeRegex from '#cli/util/escapeRegex.js';
@@ -23,13 +24,15 @@ export default async function toFilesystem(
 	contentType: ContentType,
 	bar: ProgressBar,
 ) {
+	const ui = getUi();
+	const format = ui.options.schema.serializationFormat;
 	const directory = schemaDirectory(contentType.uid);
 	const fsEntries = ctx.fs.entries.byTitleFor(contentType.uid);
 	const csEntries = ctx.cs.entries.byTitleFor(contentType.uid);
-	const filenamesByTitle = generateFilenames(csEntries);
+	const filenamesByTitle = generateFilenames(csEntries, format);
 
 	const getBasePath = (entry: Entry) =>
-		resolve(directory, resolveFilename(filenamesByTitle, entry));
+		resolve(directory, resolveFilename(filenamesByTitle, entry, format));
 
 	const write = createWriteFn(ctx, contentType, directory, getBasePath);
 	const remove = createRemoveFn(directory, getBasePath);
@@ -139,11 +142,15 @@ async function writeLocaleVersion(
 		transformed.locale = localeCode;
 	}
 
+	const ui = getUi();
+	const format = ui.options.schema.serializationFormat;
+	const ext = getFileExtension(format);
 	const basePath = getBasePath(entry);
+	const extPattern = new RegExp(`${escapeRegex(ext)}$`, 'u');
 	const filePath = useLocaleSuffix
-		? basePath.replace(/\.yaml$/u, `.${localeCode}.yaml`)
+		? basePath.replace(extPattern, `.${localeCode}${ext}`)
 		: basePath;
-	await writeYaml(filePath, transformed);
+	await writeSerializedData(filePath, transformed, format);
 }
 
 function createRemoveFn(
@@ -151,19 +158,23 @@ function createRemoveFn(
 	getBasePath: (entry: Entry) => string,
 ) {
 	return async (entry: Entry) => {
+		const ui = getUi();
+		const format = ui.options.schema.serializationFormat;
+		const ext = getFileExtension(format);
 		const basePath = getBasePath(entry);
-		const baseFilename = basename(basePath, '.yaml');
+		const baseFilename = basename(basePath, ext);
 
 		try {
 			const files = await readdir(directory);
+			const escapedExt = escapeRegex(ext).replace(/^\\./u, ''); // Remove leading backslash-dot
 			const pattern = new RegExp(
-				`^${escapeRegex(baseFilename)}\\..*\\.yaml$`,
+				`^${escapeRegex(baseFilename)}\\..*\\.${escapedExt}$`,
 				'u',
 			);
 
 			for (const file of files) {
-				// Remove both locale-suffixed files (entry.en-us.yaml) and base file (entry.yaml)
-				if (pattern.test(file) || file === `${baseFilename}.yaml`) {
+				// Remove both locale-suffixed files (entry.en-us.ext) and base file (entry.ext)
+				if (pattern.test(file) || file === `${baseFilename}${ext}`) {
 					await rm(resolve(directory, file), { force: true });
 				}
 			}
@@ -176,7 +187,10 @@ function createRemoveFn(
 function resolveFilename(
 	filenamesByTitle: ReadonlyMap<Entry['title'], string>,
 	entry: Entry,
+	format: 'json' | 'yaml',
 ) {
+	const ext = getFileExtension(format);
+
 	if (Filename in entry) {
 		const embedded = entry[Filename];
 		if (typeof embedded === 'string') {
@@ -195,7 +209,7 @@ function resolveFilename(
 	// and other operations do not fail when a mapping is missing. This can
 	// happen when entries exist on one side but not the other during merge
 	// plans. Use the same sanitization rules as `generateFilenames`.
-	const fallback = sanitizeFilename(entry.title) + '.yaml';
+	const fallback = sanitizeFilename(entry.title) + ext;
 	return fallback;
 }
 

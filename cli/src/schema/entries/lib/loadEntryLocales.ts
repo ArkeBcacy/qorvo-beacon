@@ -1,12 +1,39 @@
 import type { Entry } from '#cli/cs/entries/Types.js';
-import readYaml from '#cli/fs/readYaml.js';
+import readSerializedData from '#cli/fs/readSerializedData.js';
+import { getSupportedExtensions } from '#cli/fs/serializationFormat.js';
 import escapeRegex from '#cli/util/escapeRegex.js';
+import { extname, parse } from 'node:path';
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 export interface EntryWithLocale {
 	readonly entry: Entry;
 	readonly locale: string;
+}
+
+/**
+ * Sort locale entries to ensure 'default' locale comes first, followed by 'en-us',
+ * then all others. This is critical because Contentstack requires creating
+ * entries in the default locale before adding additional locale versions.
+ */
+function sortLocaleEntries(
+	results: readonly EntryWithLocale[],
+): readonly EntryWithLocale[] {
+	return [...results].sort((a, b) => {
+		if (a.locale === 'default') {
+			return -1;
+		}
+		if (b.locale === 'default') {
+			return 1;
+		}
+		if (a.locale === 'en-us' || a.locale === 'en') {
+			return -1;
+		}
+		if (b.locale === 'en-us' || b.locale === 'en') {
+			return 1;
+		}
+		return a.locale.localeCompare(b.locale);
+	});
 }
 
 /**
@@ -43,16 +70,19 @@ export default async function loadEntryLocales(
 
 	try {
 		const files = await readdir(directory);
-		const multiLocalePattern = createMultiLocalePattern(baseFilename);
-		const singleLocaleFilename = `${baseFilename}.yaml`;
+		const supportedExtensions = getSupportedExtensions();
 
 		for (const file of files) {
+			const ext = extname(file).toLowerCase();
+			if (!supportedExtensions.includes(ext)) {
+				continue;
+			}
+
 			const localeEntry = await tryLoadLocaleFile(
 				file,
 				directory,
 				entryTitle,
-				multiLocalePattern,
-				singleLocaleFilename,
+				baseFilename,
 			);
 
 			if (localeEntry) {
@@ -66,37 +96,28 @@ export default async function loadEntryLocales(
 		throw error;
 	}
 
-	// Sort results to ensure 'default' locale comes first, followed by 'en-us',
-	// then all others. This is critical because Contentstack requires creating
-	// entries in the default locale before adding additional locale versions.
-	return results.sort((a, b) => {
-		if (a.locale === 'default') {
-			return -1;
-		}
-		if (b.locale === 'default') {
-			return 1;
-		}
-		if (a.locale === 'en-us' || a.locale === 'en') {
-			return -1;
-		}
-		if (b.locale === 'en-us' || b.locale === 'en') {
-			return 1;
-		}
-		return a.locale.localeCompare(b.locale);
-	});
+	return sortLocaleEntries(results);
 }
 
-function createMultiLocalePattern(baseFilename: string): RegExp {
-	return new RegExp(`^${escapeRegex(baseFilename)}\\.([^.]+)\\.yaml$`, 'u');
+function createMultiLocalePattern(baseFilename: string, ext: string): RegExp {
+	// Escape the extension (e.g., .yaml -> \.yaml, .json -> \.json)
+	const escapedExt = escapeRegex(ext);
+	return new RegExp(
+		`^${escapeRegex(baseFilename)}\\.([^.]+)${escapedExt}$`,
+		'u',
+	);
 }
 
 async function tryLoadLocaleFile(
 	file: string,
 	directory: string,
 	entryTitle: string,
-	multiLocalePattern: RegExp,
-	singleLocaleFilename: string,
+	baseFilename: string,
 ): Promise<EntryWithLocale | null> {
+	const ext = extname(file);
+	const fileBasename = parse(file).name;
+	const multiLocalePattern = createMultiLocalePattern(baseFilename, ext);
+
 	const match = file.match(multiLocalePattern);
 	if (match) {
 		const [, locale] = match;
@@ -108,7 +129,8 @@ async function tryLoadLocaleFile(
 		return { entry, locale };
 	}
 
-	if (file === singleLocaleFilename) {
+	// Single locale file: baseFilename.ext
+	if (fileBasename === baseFilename) {
 		const entry = await loadEntryFile(directory, file, entryTitle);
 		return { entry, locale: 'default' };
 	}
@@ -122,7 +144,7 @@ async function loadEntryFile(
 	entryTitle: string,
 ): Promise<Entry> {
 	const filePath = resolve(directory, file);
-	const data = (await readYaml(filePath)) as Record<string, unknown>;
+	const data = (await readSerializedData(filePath)) as Record<string, unknown>;
 
 	return {
 		...data,

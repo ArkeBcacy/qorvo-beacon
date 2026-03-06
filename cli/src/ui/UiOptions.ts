@@ -50,6 +50,7 @@ function schema(...others: PartialOptions['schema'][]): Options['schema'] {
 		extension: maps(...others.map((o) => o?.extension)),
 		jsonRtePlugin: maps(...others.map((o) => o?.jsonRtePlugin)),
 		schemaPath: other.schemaPath ?? defaultSchemaPath,
+		serializationFormat: other.serializationFormat ?? 'yaml',
 		taxonomies: other.taxonomies ?? DefaultTaxonomyStrategies,
 	};
 }

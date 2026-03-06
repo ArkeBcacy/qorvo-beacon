@@ -5,6 +5,8 @@ import importEntry from '#cli/cs/entries/import.js';
 import type { Entry } from '#cli/cs/entries/Types.js';
 import { ensureLocaleExists } from '#cli/cs/locales/ensureLocaleExists.js';
 import BeaconReplacer from '#cli/dto/entry/BeaconReplacer.js';
+import { getFileExtension } from '#cli/fs/serializationFormat.js';
+import escapeRegex from '#cli/util/escapeRegex.js';
 import type ProgressBar from '#cli/ui/progress/ProgressBar.js';
 import type Ctx from '../ctx/Ctx.js';
 import getUi from '../lib/SchemaUi.js';
@@ -13,7 +15,9 @@ import processPlan from '../xfer/lib/processPlan.js';
 import equality from './equality.js';
 import buildCreator from './lib/buildCreator.js';
 import generateFilenames from './lib/generateFilenames.js';
-import loadEntryLocales from './lib/loadEntryLocales.js';
+import loadEntryLocales, {
+	type EntryWithLocale,
+} from './lib/loadEntryLocales.js';
 import schemaDirectory from './schemaDirectory.js';
 
 export default async function toContentstack(
@@ -22,11 +26,12 @@ export default async function toContentstack(
 	bar: ProgressBar,
 ) {
 	const ui = getUi();
+	const format = ui.options.schema.serializationFormat;
 
 	const fsEntriesByTitle = ctx.fs.entries.byTitleFor(contentType.uid);
 	const csEntriesByTitle = ctx.cs.entries.byTitleFor(contentType.uid);
 	const transformer = new BeaconReplacer(ctx, contentType);
-	const filenamesByTitle = generateFilenames(fsEntriesByTitle);
+	const filenamesByTitle = generateFilenames(fsEntriesByTitle, format);
 	const create = buildCreator(ctx, transformer, contentType);
 	const update = buildUpdateFn(
 		ctx,
@@ -176,7 +181,11 @@ async function loadFsLocaleVersions(
 		throw new Error(`No filename found for entry ${entry.title}.`);
 	}
 
-	const baseFilename = filename.replace(/\.yaml$/u, '');
+	const ui = getUi();
+	const format = ui.options.schema.serializationFormat;
+	const ext = getFileExtension(format);
+	const extPattern = new RegExp(`${escapeRegex(ext)}$`, 'u');
+	const baseFilename = filename.replace(extPattern, '');
 	const directory = schemaDirectory(contentTypeUid);
 
 	return loadEntryLocales(directory, entry.title, baseFilename);
@@ -199,6 +208,53 @@ async function getExistingLocales(
 		// or entry doesn't exist yet), return empty set to indicate no locales are known
 		return new Set<string>();
 	}
+}
+
+async function importDefaultLocale(
+	ctx: Ctx,
+	transformer: BeaconReplacer,
+	contentType: ContentType,
+	defaultLocaleVersion: EntryWithLocale,
+	entryUid: string,
+	csLocaleSet: Set<string>,
+	hasOtherLocales: boolean,
+) {
+	const transformed = transformer.process(defaultLocaleVersion.entry);
+	const overwrite = csLocaleSet.size > 0;
+
+	// When there are multiple locales, explicitly use 'en-us' for the default locale
+	// Contentstack requires the master locale to be specified when adding translations
+	const localeCode = hasOtherLocales ? 'en-us' : undefined;
+
+	await importEntry(
+		ctx.cs.client,
+		contentType.uid,
+		{ ...transformed, uid: entryUid },
+		overwrite,
+		localeCode,
+	);
+}
+
+async function importOtherLocales(
+	ctx: Ctx,
+	transformer: BeaconReplacer,
+	contentType: ContentType,
+	otherLocaleVersions: readonly EntryWithLocale[],
+	entryUid: string,
+) {
+	const otherImportPromises = otherLocaleVersions.map(async (localeVersion) => {
+		const transformed = transformer.process(localeVersion.entry);
+
+		return importEntry(
+			ctx.cs.client,
+			contentType.uid,
+			{ ...transformed, uid: entryUid },
+			true, // always overwrite for additional locales
+			localeVersion.locale,
+		);
+	});
+
+	await Promise.all(otherImportPromises);
 }
 
 async function updateAllLocales(
@@ -228,34 +284,23 @@ async function updateAllLocales(
 
 	// Import default locale first (if it exists)
 	if (defaultLocaleVersion) {
-		const transformed = transformer.process(defaultLocaleVersion.entry);
-		const overwrite = csLocaleSet.size > 0;
-
-		// When there are multiple locales, explicitly use 'en-us' for the default locale
-		// Contentstack requires the master locale to be specified when adding translations
-		const localeCode = otherLocaleVersions.length > 0 ? 'en-us' : undefined;
-
-		await importEntry(
-			ctx.cs.client,
-			contentType.uid,
-			{ ...transformed, uid: entryUid },
-			overwrite,
-			localeCode,
+		await importDefaultLocale(
+			ctx,
+			transformer,
+			contentType,
+			defaultLocaleVersion,
+			entryUid,
+			csLocaleSet,
+			otherLocaleVersions.length > 0,
 		);
 	}
 
 	// Then import other locales in parallel
-	const otherImportPromises = otherLocaleVersions.map(async (localeVersion) => {
-		const transformed = transformer.process(localeVersion.entry);
-
-		return importEntry(
-			ctx.cs.client,
-			contentType.uid,
-			{ ...transformed, uid: entryUid },
-			true, // always overwrite for additional locales
-			localeVersion.locale,
-		);
-	});
-
-	await Promise.all(otherImportPromises);
+	await importOtherLocales(
+		ctx,
+		transformer,
+		contentType,
+		otherLocaleVersions,
+		entryUid,
+	);
 }

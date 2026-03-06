@@ -23,10 +23,13 @@ export default interface Options {
 			readonly byUid: ReadonlyMap<string, string>;
 		};
 		readonly schemaPath: string;
+		readonly serializationFormat: SerializationFormat;
 		readonly taxonomies: TaxonomyStrategies;
 	};
 	readonly verbose: boolean;
 }
+
+export type SerializationFormat = 'json' | 'yaml';
 
 export type TaxonomyStrategy = 'only taxonomy' | 'taxonomy and terms';
 export type TaxonomyStrategies = ReadonlyMap<string, TaxonomyStrategy>;

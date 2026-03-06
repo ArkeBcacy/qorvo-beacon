@@ -28,6 +28,7 @@ export default function transformSchemaConfig(
 		extension,
 		'json-rte-plugin': jsonRtePlugin,
 		'schema-path': schemaPath,
+		'serialization-format': serializationFormat,
 		taxonomies,
 	} = schema;
 
@@ -38,6 +39,7 @@ export default function transformSchemaConfig(
 		...(extension ? { extension: transformMap(extension) } : {}),
 		...(jsonRtePlugin ? { jsonRtePlugin: transformMap(jsonRtePlugin) } : {}),
 		...(schemaPath ? { schemaPath } : {}),
+		...(serializationFormat ? { serializationFormat } : {}),
 		...(taxonomies ? { taxonomies: new Map(Object.entries(taxonomies)) } : {}),
 	};
 

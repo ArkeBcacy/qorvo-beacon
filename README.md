@@ -245,6 +245,7 @@ client:
 schema:
   deletion-strategy: warn # delete | ignore | warn
   schema-path: ./cs/schema
+  serialization-format: yaml # yaml | json (default: yaml)
 
   extension:
     Bynder: blt6b7c082b-example
@@ -286,6 +287,37 @@ environments:
 
 verbose: false
 ```
+
+### Serialization Format
+
+Beacon supports two file formats for serializing data: YAML and JSON. You can
+configure which format to use via the `serialization-format` option in your
+configuration file.
+
+**YAML Format (Default)**
+
+- Better readability for human review
+- Supports multi-line strings without escaping
+- Better suited for version control diffs
+- Use when: Team members frequently review serialized data
+
+**JSON Format**
+
+- Native compatibility with Contentstack exports
+- No encoding issues with special characters
+- Simpler parsing and processing
+- Use when: Integrating with Contentstack's native export/import tools
+
+Example configuration:
+
+```yaml
+schema:
+  serialization-format: json # Use JSON instead of default YAML
+```
+
+**Note:** Changing formats requires re-pulling data. Beacon automatically
+detects and reads both formats when loading existing data, enabling
+migration between formats.
 
 ### Named Environments
 

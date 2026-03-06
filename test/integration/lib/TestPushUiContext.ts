@@ -36,6 +36,7 @@ export default class TestPushUiContext extends TestUiContext {
 					extension: parseMapFromEnv(extension),
 					jsonRtePlugin: parseMapFromEnv(jsonRtePlugin),
 					schemaPath,
+					serializationFormat: 'yaml',
 					taxonomies: new Map(DefaultTaxonomyStrategies.entries()),
 				},
 				verbose: false,
