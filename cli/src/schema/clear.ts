@@ -91,33 +91,20 @@ async function deleteEntriesForContentType(
 		async () =>
 			indexEntriesForAllLocales(client, globalFields, contentType, locales),
 		async (entry) => {
-			// Use the locale we fetched the entry from to ensure the API can find it
-			// This is critical because entries may not exist in the default locale
-			const locale = entry._fetchedFromLocale;
+			// When deleting all localized versions, don't pass a locale parameter
+			// The delete_all_localized=true flag handles all locales automatically
+			// Passing a locale parameter with delete_all_localized causes API errors
+			// for non-localized entries
 			const result = await deleteEntry(
 				client,
 				contentType.uid,
 				entry.uid,
-				true,
-				locale,
+				true, // deleteAllLocalized
 			);
 
 			if (result.notFound) {
-				// Entry appeared in listing but can't be deleted - try alternative strategies
+				// Entry appeared in listing but can't be deleted
 				orphanedEntries.push({ title: entry.title, uid: entry.uid });
-
-				// Try without locale parameter
-				const retryResult = await deleteEntry(
-					client,
-					contentType.uid,
-					entry.uid,
-					true,
-				);
-
-				if (!retryResult.notFound) {
-					// Successfully deleted without locale param
-					orphanedEntries.pop(); // Remove from orphaned list
-				}
 			}
 		},
 	);

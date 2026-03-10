@@ -123,8 +123,7 @@ describe('clear', () => {
 				mockClient,
 				'test_ct',
 				'blt123',
-				true,
-				'en-us', // locale from the first fetch where this entry was found
+				true, // deleteAllLocalized - no locale parameter needed
 			);
 		});
 
@@ -241,12 +240,11 @@ describe('clear', () => {
 				mockClient,
 				'test_ct',
 				'blt123',
-				true,
-				'en-us', // locale from the first fetch where this entry was found
+				true, // deleteAllLocalized - no locale parameter needed
 			);
 		});
 
-		it('should use the locale from which the entry was fetched', async () => {
+		it('should delete all localized versions without passing locale parameter', async () => {
 			const indexContentTypes = await import('#cli/cs/content-types/index.js');
 			const indexGlobalFields = await import('#cli/cs/global-fields/index.js');
 			const indexEntriesForLocale =
@@ -283,13 +281,12 @@ describe('clear', () => {
 
 			await clear(mockClient, mockUi, false, ['test_ct']);
 
-			// Should pass the locale from which the entry was fetched
+			// Should not pass locale parameter when deleting all localized versions
 			expect(deleteEntry.default).toHaveBeenCalledWith(
 				mockClient,
 				'test_ct',
 				'blt123',
-				true,
-				'zh-cn', // locale from the fetch, not from entry.locale property
+				true, // deleteAllLocalized - no locale parameter needed
 			);
 		});
 	});
