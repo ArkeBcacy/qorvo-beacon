@@ -12,13 +12,7 @@ export default async function readSerializedData(
 ): Promise<unknown> {
 	const ext = extname(String(pathLike)).toLowerCase();
 
-	if (ext === '.json') {
-		const raw = await readFile(pathLike, 'utf-8');
-		return JSON.parse(raw);
-	}
-
-	// Default to YAML parsing (handles .yaml, .yml, or no extension)
-	// Read as buffer first to detect encoding
+	// Read as buffer first to detect and handle encoding/BOM
 	const buffer = await readFile(pathLike);
 
 	// Check for UTF-16 LE BOM (FF FE)
@@ -46,12 +40,24 @@ export default async function readSerializedData(
 		raw = buffer.toString('utf-8');
 	}
 
+	// Strip UTF-8 BOM if present (EF BB BF decoded as U+FEFF)
+	if (raw.charCodeAt(0) === UTF8_BOM_CHAR) {
+		raw = raw.slice(1);
+	}
+
+	// Parse based on file extension
+	if (ext === '.json') {
+		return JSON.parse(raw);
+	}
+
+	// Default to YAML parsing (handles .yaml, .yml, or no extension)
 	return parseYaml(raw);
 }
 
-// UTF-16 Byte Order Mark (BOM) constants
+// Byte Order Mark (BOM) constants
 const UTF16_LE_BOM_BYTE1 = 0xff;
 const UTF16_LE_BOM_BYTE2 = 0xfe;
 const UTF16_BE_BOM_BYTE1 = 0xfe;
 const UTF16_BE_BOM_BYTE2 = 0xff;
 const BYTES_PER_UTF16_CHAR = 2;
+const UTF8_BOM_CHAR = 0xfeff; // UTF-8 BOM character code
