@@ -120,6 +120,25 @@ properties:
         default:
           '*': 'taxonomy and terms'
 
+      labels:
+        type: object
+        additionalProperties: false
+        description: Include or exclude labels using glob patterns.
+        default:
+          include: ['**']
+          exclude: []
+        properties:
+          include:
+            type: array
+            items:
+              type: string
+              minLength: 1
+          exclude:
+            type: array
+            items:
+              type: string
+              minLength: 1
+
   verbose:
     type: boolean
     default: false
@@ -140,7 +159,8 @@ properties:
           are merged.
 
         - `schema.assets.include`, `schema.assets.exclude`, `schema.entries.include`,
-          and `schema.entries.exclude` are concatenated.
+          `schema.entries.exclude`, `schema.labels.include`, and `schema.labels.exclude`
+          are concatenated.
 
         - All other values will prefer the named environment.
 

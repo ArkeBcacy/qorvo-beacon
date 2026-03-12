@@ -11,7 +11,7 @@ stack in the Contentstack headless CMS platform.
 Beacon enables full-stack synchronization by allowing users to:
 
 - Serialize (export) a stack's entire contents, including entries, assets,
-  content types, global fields, and taxonomies, into the file system.
+  content types, global fields, labels, and taxonomies, into the file system.
 
 - Store the serialized data under version control for tracking and
   CI/CD deployment.
@@ -60,7 +60,7 @@ npx beacon <command>
 #### `clear`
 
 Completely empties a stack by removing all entries, content types, global
-fields, taxonomies, and assets.
+fields, labels, taxonomies, and assets.
 
 #### `pull`
 
@@ -264,6 +264,11 @@ schema:
     include: ['**']
     exclude: []
 
+  # Include or exclude labels using glob patterns.
+  labels:
+    include: ['**']
+    exclude: []
+
   # Determine whether to serialize taxonomy terms or just the
   # taxonomy structure.
   taxonomies:
@@ -426,7 +431,7 @@ schema:
 
 ### Cookbook: Excluding Entries
 
-To sync only the content model (content types, global fields, and taxonomies)
+To sync only the content model (content types, global fields, labels, and taxonomies)
 without syncing entries, configure the `entries` setting to exclude all content
 types:
 
@@ -446,6 +451,27 @@ schema:
   entries:
     include: ['blog_post', 'page']
     exclude: ['archived_*']
+```
+
+### Cookbook: Filtering Labels
+
+To selectively sync labels, use include/exclude patterns with label UIDs:
+
+```yaml
+# beacon.yaml
+schema:
+  labels:
+    include: ['production', 'staging', 'review_*']
+    exclude: ['deprecated_*', 'internal_*']
+```
+
+To exclude all labels from syncing:
+
+```yaml
+# beacon.yaml
+schema:
+  labels:
+    exclude: ['**']
 ```
 
 This is useful for scenarios like:

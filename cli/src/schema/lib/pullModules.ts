@@ -5,6 +5,7 @@ import type Ctx from '../ctx/Ctx.js';
 import clean from '../entries/clean.js';
 import entries from '../entries/toFilesystem.js';
 import globalFields from '../global-fields/toFilesystem.js';
+import labels from '../labels/toFilesystem.js';
 import taxonomies from '../taxonomies/toFilesystem.js';
 import type TransferResults from '../xfer/TransferResults.js';
 import getUi from './SchemaUi.js';
@@ -14,6 +15,7 @@ export default async function* pullModules(
 ): AsyncGenerator<readonly [string, Promise<TransferResults>]> {
 	yield ['Assets', assets(ctx)];
 	yield ['Global Fields', globalFields(ctx)];
+	yield ['Labels', labels(ctx)];
 	yield ['Taxonomies', taxonomies(ctx)];
 	yield ['Content Types', contentTypes(ctx)];
 

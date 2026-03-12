@@ -8,6 +8,7 @@ import Ctx from './ctx/Ctx.js';
 import entries from './entries/toContentstack.js';
 import updateMissedReferences from './entries/updateMissedReferences.js';
 import globalFields from './global-fields/toContentstack.js';
+import labels from './labels/toContentstack.js';
 import PushResults from './lib/PushResults.js';
 import getUi from './lib/SchemaUi.js';
 import taxonomies from './taxonomies/toContentstack.js';
@@ -67,6 +68,7 @@ export default async function push(client: Client) {
 		}
 	}
 
+	await results.set('Labels', labels(ctx));
 	await results.set('References', updateMissedReferences(ctx));
 	return results.value;
 }

@@ -22,6 +22,9 @@ export default interface Options {
 			readonly byName: ReadonlyMap<string, string>;
 			readonly byUid: ReadonlyMap<string, string>;
 		};
+		readonly labels: {
+			readonly isIncluded: (labelUid: string) => boolean;
+		};
 		readonly schemaPath: string;
 		readonly serializationFormat: SerializationFormat;
 		readonly taxonomies: TaxonomyStrategies;

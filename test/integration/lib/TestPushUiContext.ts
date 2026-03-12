@@ -35,6 +35,7 @@ export default class TestPushUiContext extends TestUiContext {
 					entries: { isIncluded: () => true },
 					extension: parseMapFromEnv(extension),
 					jsonRtePlugin: parseMapFromEnv(jsonRtePlugin),
+					labels: { isIncluded: () => true },
 					schemaPath,
 					serializationFormat: 'yaml',
 					taxonomies: new Map(DefaultTaxonomyStrategies.entries()),
