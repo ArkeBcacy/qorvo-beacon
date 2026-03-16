@@ -2,6 +2,7 @@ import resolveConfig from '#cli/cfg/resolveConfig.js';
 import { createClient } from '#cli/cs/api/Client.js';
 import type { ValidationReport } from '#cli/schema/references/InvalidReference.js';
 import { validateReferences } from '#cli/schema/references/validateReferences.js';
+import { Store } from '#cli/schema/lib/SchemaUi.js';
 import createStylus from '#cli/ui/createStylus.js';
 import HandledError from '#cli/ui/HandledError.js';
 import { ConsoleUiContext } from '#cli/ui/UiContext.js';
@@ -25,10 +26,10 @@ validate.action(async (cliOptions: CommandOptions) =>
 
 		ui.info('\nValidating references in Contentstack...\n');
 
-		const report = await (async () => {
+		const report = await Store.run(ui, async () => {
 			await using client = createClient(ui);
 			return await validateReferences(client);
-		})();
+		});
 
 		displayValidationReport(ui, report);
 
