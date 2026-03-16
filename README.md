@@ -70,6 +70,24 @@ Serializes a stack's content into the file system for version control or backup.
 
 Deserializes the contents from the file system into the stack.
 
+#### `validate-references`
+
+Validates all entry and asset references in Contentstack without modifying any
+data. This is a read-only operation that generates a report of invalid
+references, including:
+
+- Missing entry references (references to entries that don't exist)
+- Missing content type references (references to content types that don't exist)
+- Missing asset references (in both JSON RTE and HTML RTE fields)
+- Invalid reference structures
+
+This command is useful for:
+
+- Identifying broken references before pushing changes
+- Auditing content integrity in existing stacks
+- Troubleshooting reference-related issues
+- Ensuring data quality across environments
+
 ### Common CLI Options
 
 | Option                       | Description                                     | Required? |
@@ -385,6 +403,48 @@ yarn beacon clear \
   --base-url https://api.contentstack.io
 ```
 
+### Validating References
+
+```sh
+yarn beacon validate-references \
+  --api-key bltcfcf264c-example \
+  --management-token cs-example \
+  --base-url https://api.contentstack.io
+```
+
+This command analyzes all entries and their references without making any
+changes to the stack. If invalid references are found, the command exits with
+a non-zero status code and displays a detailed report showing:
+
+- Which entries contain invalid references
+- The type of issue (missing entry, missing content type, missing asset, or
+  invalid structure)
+- The field path where the issue was found
+- The target of the invalid reference
+
+Example output:
+
+```
+Validation Report:
+────────────────────────────────────────────────────────────
+Total entries checked:      125
+Entries with issues:        2
+Total invalid references:   3
+
+Issues by type:
+  Missing entries:          2
+  Missing assets:           1
+
+Detailed issues:
+
+Entry: navigation/Main Nav
+  missing-entry        linked_page               → page/blt999
+  missing-asset        background_image          → sys_assets/blt888
+
+Entry: footer/Footer
+  missing-entry        related_content           → blog_post/blt777
+```
+
 ### Cookbook: Project Configuration
 
 The recommended configuration for incorporating Beacon into a project is to
@@ -491,6 +551,7 @@ Under this configuration, the push, pull, and clear commands become:
 yarn beacon pull
 yarn beacon push
 yarn beacon clear
+yarn beacon validate-references
 ```
 
 For CI/CD environments, the `.env` file will not exist, so environment variables
