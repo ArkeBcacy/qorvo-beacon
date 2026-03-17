@@ -10,43 +10,45 @@ import type LabelCollection from './LabelCollection.js';
 
 export default class FsLabelCollection implements LabelCollection {
 	readonly #directory = schemaDirectory();
-	readonly #labels: Map<Label['uid'], NormalizedLabel>;
+	readonly #labels: Map<Label['name'], NormalizedLabel>;
 
-	public constructor(labels: ReadonlyMap<Label['uid'], NormalizedLabel>) {
+	public constructor(labels: ReadonlyMap<Label['name'], NormalizedLabel>) {
 		this.#labels = new Map(labels);
 	}
 
-	public get byUid(): ReadonlyMap<Label['uid'], NormalizedLabel> {
+	public get byUid(): ReadonlyMap<Label['name'], NormalizedLabel> {
 		return this.#labels;
 	}
 
 	public async create(normalized: NormalizedLabel): Promise<void> {
 		await this.#write(normalized);
-		this.#labels.set(normalized.label.uid, normalized);
+		this.#labels.set(normalized.label.name, normalized);
 	}
 
 	public async remove(normalized: NormalizedLabel): Promise<void> {
-		await rm(this.#getPath(normalized.label.uid), { force: true });
-		this.#labels.delete(normalized.label.uid);
+		await rm(this.#getPath(normalized.label.name), { force: true });
+		this.#labels.delete(normalized.label.name);
 	}
 
 	public async update(normalized: NormalizedLabel): Promise<void> {
 		await this.#write(normalized);
-		this.#labels.set(normalized.label.uid, normalized);
+		this.#labels.set(normalized.label.name, normalized);
 	}
 
 	async #write(normalized: NormalizedLabel) {
 		const ui = getUi();
 		const format = ui.options.schema.serializationFormat;
-		const path = this.#getPath(normalized.label.uid);
+		const path = this.#getPath(normalized.label.name);
 		return writeSerializedData(path, normalized, format, {
 			sortMapEntries: false,
 		});
 	}
 
-	#getPath(uid: string) {
+	#getPath(name: string) {
 		const ui = getUi();
 		const format = ui.options.schema.serializationFormat;
-		return resolve(this.#directory, `${uid}${getFileExtension(format)}`);
+		// Sanitize the name for use as a filename
+		const safeName = name.replace(/[^a-z0-9_-]/giu, '_').toLowerCase();
+		return resolve(this.#directory, `${safeName}${getFileExtension(format)}`);
 	}
 }

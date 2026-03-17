@@ -63,7 +63,11 @@ export default class Ctx {
 			contentTypes: transformCsSchema(csEntries.keys()),
 			entries: new EntryCollection(csEntries),
 			globalFields: transformCsSchema(csGlobalFields.values()),
-			labels: new CsLabelCollection(client, csLabels),
+			labels: new CsLabelCollection(
+				client,
+				csLabels.labels,
+				csLabels.uidByName,
+			),
 			taxonomies: new CsTaxonomyCollection(client, csTaxonomies),
 		};
 

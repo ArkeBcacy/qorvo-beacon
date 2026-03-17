@@ -8,39 +8,57 @@ import toCs from '#cli/dto/label/toCs.js';
 import type LabelCollection from './LabelCollection.js';
 
 export default class CsLabelCollection implements LabelCollection {
-	readonly #labels: Map<Label['uid'], NormalizedLabel>;
+	readonly #labels: Map<Label['name'], NormalizedLabel>;
+	readonly #uidByName: Map<Label['name'], Label['uid']>;
 
 	public constructor(
 		private readonly client: Client,
-		labels: ReadonlyMap<Label['uid'], NormalizedLabel>,
+		labels: ReadonlyMap<Label['name'], NormalizedLabel>,
+		uidByName: ReadonlyMap<Label['name'], Label['uid']>,
 	) {
 		this.#labels = new Map(labels);
+		this.#uidByName = new Map(uidByName);
 	}
 
-	public get byUid(): ReadonlyMap<Label['uid'], NormalizedLabel> {
+	public get byUid(): ReadonlyMap<Label['name'], NormalizedLabel> {
 		return this.#labels;
 	}
 
 	public async create(normalized: NormalizedLabel): Promise<void> {
-		const { uid, ...rest } = toCs(normalized);
-		await importLabel(this.client, rest);
-		this.#labels.set(normalized.label.uid, normalized);
+		const labelWithoutUid = toCs(normalized);
+		const uid = await importLabel(this.client, labelWithoutUid);
+		this.#labels.set(normalized.label.name, normalized);
+		this.#uidByName.set(normalized.label.name, uid);
 	}
 
 	public async remove(normalized: NormalizedLabel): Promise<void> {
-		await deleteLabel(this.client, normalized.label.uid);
-		this.#labels.delete(normalized.label.uid);
+		const uid = this.#uidByName.get(normalized.label.name);
+
+		if (!uid) {
+			throw new Error(`Label ${normalized.label.name} UID not found`);
+		}
+
+		await deleteLabel(this.client, uid);
+		this.#labels.delete(normalized.label.name);
+		this.#uidByName.delete(normalized.label.name);
 	}
 
 	public async update(normalized: NormalizedLabel): Promise<void> {
-		const existing = this.#labels.get(normalized.label.uid);
+		const existing = this.#labels.get(normalized.label.name);
 
 		if (!existing) {
-			throw new Error(`Label ${normalized.label.uid} does not exist`);
+			throw new Error(`Label ${normalized.label.name} does not exist`);
 		}
 
-		await updateLabel(this.client, toCs(normalized));
+		const uid = this.#uidByName.get(normalized.label.name);
 
-		this.#labels.set(normalized.label.uid, normalized);
+		if (!uid) {
+			throw new Error(`Label ${normalized.label.name} UID not found`);
+		}
+
+		const labelWithUid = toCs(normalized, uid) as Label;
+		await updateLabel(this.client, labelWithUid);
+
+		this.#labels.set(normalized.label.name, normalized);
 	}
 }

@@ -1,18 +1,17 @@
 import type Label from '#cli/cs/labels/Label.js';
-import { isItem } from '#cli/cs/Types.js';
 import isRecord from '#cli/util/isRecord.js';
 
 export default interface NormalizedLabel {
 	readonly label: {
 		readonly name: Label['name'];
-		readonly uid: Label['uid'];
+		readonly uid?: Label['uid'];
 		readonly parent?: Label['parent'];
 		readonly content_types?: Label['content_types'];
 	};
 }
 
 export function key(o: NormalizedLabel) {
-	return o.label.uid;
+	return o.label.name;
 }
 
 export function isNormalizedLabel(
@@ -28,9 +27,8 @@ export function isNormalizedLabel(
 function isLabel(x: unknown): x is NormalizedLabel['label'] {
 	return (
 		isRecord(x) &&
-		isItem(x) &&
 		typeof x.name === 'string' &&
-		typeof x.uid === 'string' &&
+		(!('uid' in x) || x.uid === undefined || typeof x.uid === 'string') &&
 		(!('parent' in x) ||
 			x.parent === undefined ||
 			(Array.isArray(x.parent) &&
