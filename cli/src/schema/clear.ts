@@ -26,9 +26,9 @@ export default async function clear(
 	deleteAssets = false,
 	contentTypes: string[] = [],
 ) {
-	// If specific content types are provided, only delete entries for those types
+	// If specific content types are provided, delete entries and the content types themselves
 	if (contentTypes.length > 0) {
-		await deleteEntriesForContentTypes(client, ui, contentTypes);
+		await deleteEntriesAndContentTypes(client, ui, contentTypes);
 		return;
 	}
 
@@ -41,7 +41,7 @@ export default async function clear(
 	]);
 }
 
-async function deleteEntriesForContentTypes(
+async function deleteEntriesAndContentTypes(
 	client: Client,
 	ui: UiContext,
 	contentTypeUids: string[],
@@ -50,9 +50,22 @@ async function deleteEntriesForContentTypes(
 	const allContentTypes = await indexContentTypes(client);
 	const globalFields = await indexGlobalFields(client);
 
+	// Debug: Log all available content types
+	ui.info('\nAvailable content types:');
+	for (const [uid, ct] of allContentTypes) {
+		ui.info(`  - ${uid} (${ct.title})`);
+	}
+	ui.info(`\nRequested content types: ${contentTypeUids.join(', ')}\n`);
+
 	// Filter to only the requested content types
 	const contentTypesToClear = contentTypeUids
-		.map((uid) => allContentTypes.get(uid))
+		.map((uid) => {
+			const ct = allContentTypes.get(uid);
+			if (!ct) {
+				ui.warn(`Content type UID not found: ${uid}`);
+			}
+			return ct;
+		})
 		.filter((ct) => ct !== undefined);
 
 	if (contentTypesToClear.length === 0) {
@@ -73,6 +86,16 @@ async function deleteEntriesForContentTypes(
 			locales,
 		);
 	}
+
+	// Now delete the content types themselves
+	ui.info('\nDeleting content types...\n');
+	await deleteAll(
+		ui,
+		'Content Types',
+		(item) => item.title,
+		() => new Map(contentTypesToClear.map((ct) => [ct.uid, ct])),
+		async (item) => deleteContentType(client, item.uid),
+	);
 }
 
 async function deleteEntriesForContentType(
@@ -84,12 +107,28 @@ async function deleteEntriesForContentType(
 ) {
 	const orphanedEntries: { uid: string; title: string }[] = [];
 
+	// Fetch entries first to log count
+	const entries = await indexEntriesForAllLocales(
+		client,
+		globalFields,
+		contentType,
+		locales,
+	);
+
+	ui.info(
+		`\nFound ${entries.size} entries for content type: ${contentType.title} (${contentType.uid})`,
+	);
+
+	if (entries.size === 0) {
+		ui.info('No entries to delete.\n');
+		return;
+	}
+
 	await deleteAll(
 		ui,
 		`${contentType.title} Entries`,
 		(entry) => entry.title,
-		async () =>
-			indexEntriesForAllLocales(client, globalFields, contentType, locales),
+		() => entries,
 		async (entry) => {
 			// When deleting all localized versions, don't pass a locale parameter
 			// The delete_all_localized=true flag handles all locales automatically

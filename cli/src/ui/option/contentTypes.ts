@@ -2,7 +2,7 @@ import { Option } from 'commander';
 
 const contentTypes = new Option(
 	'--content-types <types...>',
-	'Space-delimited list of content type UIDs to clear entries for',
+	'Space-delimited list of content type UIDs to delete (removes both entries and the content types themselves)',
 );
 
 export const defaultValue: string[] = [];

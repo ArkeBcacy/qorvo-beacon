@@ -62,6 +62,20 @@ npx beacon <command>
 Completely empties a stack by removing all entries, content types, global
 fields, labels, taxonomies, and assets.
 
+**Options:**
+
+- `--content-types <types...>` - Space-delimited list of content type UIDs to
+  delete. When specified, only the listed content types and their entries are
+  removed. **Note:** This deletes both the entries _and_ the content type
+  definitions themselves.
+
+- `--delete-assets` - Whether to delete assets as well. Default value is `false`
+
+**⚠️ Warning:** The `clear` command is destructive and cannot be undone. When
+using `--content-types`, both the content type schema and all associated entries
+are permanently deleted. Always ensure you have a backup (using `beacon pull`)
+before clearing a stack.
+
 #### `pull`
 
 Serializes a stack's content into the file system for version control or backup.
@@ -396,12 +410,31 @@ yarn beacon push \
 
 ### Clearing a Stack
 
+Clear all content from a stack (entries, content types, global fields,
+labels, taxonomies, and optionally assets):
+
 ```sh
 yarn beacon clear \
   --api-key bltcfcf264c-example \
   --management-token cs-example \
   --base-url https://api.contentstack.io
 ```
+
+Clear specific content types only (deletes both the content type schema
+and all entries):
+
+```sh
+yarn beacon clear \
+  --api-key bltcfcf264c-example \
+  --management-token cs-example \
+  --base-url https://api.contentstack.io \
+  --content-types page_article_page data_author
+```
+
+**Note:** When using `--content-types`, both the content type definitions and
+all associated entries are permanently deleted. This is useful for cleaning up
+orphaned or corrupted entries that cannot be deleted individually. You can
+restore the content type schema by running `beacon push` after clearing.
 
 ### Validating References
 

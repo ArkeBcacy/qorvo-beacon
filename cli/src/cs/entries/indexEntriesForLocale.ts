@@ -34,6 +34,7 @@ async function fetchFn(
 			query: {
 				include_count: 'true',
 				include_publish_details: 'false',
+				include_workflow: 'true',
 				limit: 100,
 				locale,
 				...(skip > 0 ? { skip } : {}),
