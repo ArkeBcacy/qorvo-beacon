@@ -12,9 +12,16 @@ export default async function indexCs(client: Client): Promise<{
 	const labels = new Map<string, NormalizedLabel>();
 	const uidByName = new Map<string, Label['uid']>();
 
+	// First pass: build UID → name mapping
+	const uidToName = new Map<string, string>();
 	for (const label of raw.values()) {
-		labels.set(label.name, fromCs(label));
 		uidByName.set(label.name, label.uid);
+		uidToName.set(label.uid, label.name);
+	}
+
+	// Second pass: transform labels with parent UID → name resolution
+	for (const label of raw.values()) {
+		labels.set(label.name, fromCs(label, uidToName));
 	}
 
 	return { labels, uidByName };

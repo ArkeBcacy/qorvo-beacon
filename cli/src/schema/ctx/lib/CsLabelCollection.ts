@@ -25,7 +25,7 @@ export default class CsLabelCollection implements LabelCollection {
 	}
 
 	public async create(normalized: NormalizedLabel): Promise<void> {
-		const labelWithoutUid = toCs(normalized);
+		const labelWithoutUid = toCs(normalized, this.#uidByName);
 		const uid = await importLabel(this.client, labelWithoutUid);
 		this.#labels.set(normalized.label.name, normalized);
 		this.#uidByName.set(normalized.label.name, uid);
@@ -56,7 +56,7 @@ export default class CsLabelCollection implements LabelCollection {
 			throw new Error(`Label ${normalized.label.name} UID not found`);
 		}
 
-		const labelWithUid = toCs(normalized, uid) as Label;
+		const labelWithUid = toCs(normalized, this.#uidByName, uid) as Label;
 		await updateLabel(this.client, labelWithUid);
 
 		this.#labels.set(normalized.label.name, normalized);
