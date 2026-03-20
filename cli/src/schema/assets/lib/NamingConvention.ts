@@ -1,6 +1,7 @@
 import type { SerializationFormat } from '#cli/ui/Options.js';
 import type { Dirent } from 'node:fs';
 import path from 'node:path';
+import normalizeFolderName from './normalizeFolderName.js';
 
 export function getBlobPath(absPathToOriginalFile: string): string;
 export function getBlobPath(assetsPath: string, itemPath: string): string;
@@ -85,10 +86,21 @@ export function* assetPaths(assetsPath: string, files: Iterable<Dirent>) {
 		const orgName = `${orgBaseName}${originalExt}`;
 		const originalPath = path.resolve(file.parentPath, orgName);
 		const blobName = `${orgBaseName}.blob${originalExt}`;
+		const rawItemPath = formatItemPath(assetsPath, originalPath);
+		// Normalize folder names in path to replace spaces with underscores
+		const itemPath = rawItemPath
+			.split('/')
+			.map((segment, index, array) => {
+				// Only normalize folder segments, not the filename (last segment)
+				return index < array.length - 1
+					? normalizeFolderName(segment)
+					: segment;
+			})
+			.join('/');
 
 		yield {
 			blobPath: path.resolve(file.parentPath, blobName),
-			itemPath: formatItemPath(assetsPath, originalPath),
+			itemPath,
 			metaPath: path.resolve(file.parentPath, file.name),
 		};
 	}

@@ -6,6 +6,7 @@ import {
 	assetPaths,
 	formatItemPath,
 } from '../../schema/assets/lib/NamingConvention.js';
+import normalizeFolderName from '../../schema/assets/lib/normalizeFolderName.js';
 import schemaDirectory from '../../schema/assets/schemaDirectory.js';
 import tryReadDir from '../tryReadDir.js';
 
@@ -40,8 +41,15 @@ export default class Assets {
 			}
 
 			const absPath = resolve(entry.parentPath, entry.name);
-			const itemPath = formatItemPath(assetsPath, absPath);
-			foldersByPath.set(itemPath, { itemPath, name: entry.name });
+			const rawItemPath = formatItemPath(assetsPath, absPath);
+			// Normalize folder names to replace spaces with underscores
+			// Split path, normalize each segment, rejoin
+			const itemPath = rawItemPath
+				.split('/')
+				.map(normalizeFolderName)
+				.join('/');
+			const normalizedName = normalizeFolderName(entry.name);
+			foldersByPath.set(itemPath, { itemPath, name: normalizedName });
 		}
 
 		return new Assets(assetsByPath, foldersByPath);
