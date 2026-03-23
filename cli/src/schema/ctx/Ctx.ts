@@ -85,6 +85,14 @@ export default class Ctx {
 			taxonomies: new FsTaxonomyCollection(fsTaxonomies),
 		};
 
+		// Pre-populate ReferenceMap with existing Contentstack entries
+		// so they can be resolved when transforming filesystem entries
+		for (const [contentType, entries] of csEntries) {
+			for (const entry of entries) {
+				this.references.recordEntryForReferences(contentType.uid, entry);
+			}
+		}
+
 		this.cs = { ...this.cs, entries: this.#transformCsEntries(csEntries) };
 	}
 
@@ -106,7 +114,7 @@ export default class Ctx {
 			indexFsLabels(),
 			indexFsTaxonomies(),
 			indexAllFsEntries(),
-			FsAssets.create(),
+			FsAssets.createIfIncluded(),
 		]);
 
 		return new Ctx(

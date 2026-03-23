@@ -8,6 +8,7 @@ import {
 } from '../../schema/assets/lib/NamingConvention.js';
 import normalizeFolderName from '../../schema/assets/lib/normalizeFolderName.js';
 import schemaDirectory from '../../schema/assets/schemaDirectory.js';
+import getUi from '../../schema/lib/SchemaUi.js';
 import tryReadDir from '../tryReadDir.js';
 
 export default class Assets {
@@ -22,6 +23,41 @@ export default class Assets {
 
 	public get foldersByPath(): ReadonlyMap<string, FolderMeta> {
 		return this._foldersByPath;
+	}
+
+	public static async createIfIncluded() {
+		// Check if assets are excluded - if so, return empty collection
+		// without reading from disk
+		const ui = getUi();
+		const { isIncluded } = ui.options.schema.assets;
+
+		// Test a few common paths to see if assets are included.
+		// We need to check if the filter could potentially include files,
+		// not if specific hardcoded paths are included.
+		// To detect a filter that excludes everything, we test several paths
+		// AND check if the directory exists with files.
+		const testPaths = ['test.jpg', 'assets/test.png', 'folder/file.pdf'];
+		const hasAnyIncluded = testPaths.some(isIncluded);
+
+		if (!hasAnyIncluded) {
+			// None of the test paths matched. Check if there are actual files
+			// on disk that might be included before deciding to skip loading.
+			const assetsPath = schemaDirectory();
+			const entries = await tryReadDir(assetsPath, true);
+
+			// If there are actual asset files, we need to load and check them
+			// against the filter, as the filter might include files we haven't
+			// tested with our hardcoded paths.
+			const hasAssetFiles =
+				assetPaths(assetsPath, entries).next().done === false;
+
+			if (!hasAssetFiles) {
+				// No asset files on disk, safe to return empty collection
+				return new Assets(new Map(), new Map());
+			}
+		}
+
+		return this.create();
 	}
 
 	public static async create() {
