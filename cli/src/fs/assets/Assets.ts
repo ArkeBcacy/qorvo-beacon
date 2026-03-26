@@ -67,8 +67,23 @@ export default class Assets {
 		const entries = await tryReadDir(assetsPath, true);
 
 		for (const paths of assetPaths(assetsPath, entries)) {
-			const meta = await load(paths);
-			assetsByPath.set(meta.itemPath, meta);
+			try {
+				const meta = await load(paths);
+				assetsByPath.set(meta.itemPath, meta);
+			} catch (error) {
+				// Skip assets where the blob file is missing (ENOENT error)
+				// The load() function already logged a warning
+				if (
+					error &&
+					typeof error === 'object' &&
+					'code' in error &&
+					error.code === 'ENOENT'
+				) {
+					continue;
+				}
+				// Re-throw other errors
+				throw error;
+			}
 		}
 
 		for (const entry of entries) {

@@ -27,13 +27,31 @@ export async function load(paths: {
 	readonly itemPath: string;
 	readonly metaPath: string;
 }): Promise<AssetMeta> {
-	const [parsed, blobStats] = await Promise.all([
-		readSerializedData(paths.metaPath),
-		stat(paths.blobPath),
-	]);
+	const parsed = await readSerializedData(paths.metaPath);
 
 	if (!isRawMeta(parsed)) {
 		throw new Error(`Invalid asset metadata: ${paths.metaPath}`);
+	}
+
+	// Try to stat the blob file, but handle gracefully if it doesn't exist
+	let blobStats;
+	try {
+		blobStats = await stat(paths.blobPath);
+	} catch (error) {
+		if (
+			error &&
+			typeof error === 'object' &&
+			'code' in error &&
+			error.code === 'ENOENT'
+		) {
+			const ui = getUi();
+			ui.warn(
+				`Asset blob file not found, skipping: ${paths.blobPath}`,
+				`(Metadata exists at: ${paths.metaPath})`,
+			);
+			throw error; // Re-throw to indicate load failed, so caller can skip this asset
+		}
+		throw error;
 	}
 
 	const { description, tags, title } = parsed;
