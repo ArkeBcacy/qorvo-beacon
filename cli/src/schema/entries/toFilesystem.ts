@@ -43,9 +43,6 @@ export default async function toFilesystem(
 		plan: planMerge(equality, csEntries, fsEntries),
 		progress: bar,
 		remove,
-		// Process unmodified entries to ensure locale versions are checked/written
-		// even when the master locale content hasn't changed
-		unmodified: write,
 		update: write,
 	});
 }
@@ -64,6 +61,13 @@ function createWriteFn(
 				contentType.uid,
 				entry.uid,
 			);
+
+			// Debug logging for multi-locale entries
+			if (locales.length > 1) {
+				getUi().info(
+					`Entry "${entry.title}" has ${locales.length} locales: ${locales.map((l) => l.code).join(', ')}`,
+				);
+			}
 		} catch {
 			// If the locales endpoint fails (e.g., not supported by Contentstack instance),
 			// fall back to single-locale behavior using entry's locale property
@@ -124,6 +128,17 @@ async function writeLocaleVersion(
 		localeCode,
 	);
 
+	// Debug: Log the exported locale vs requested locale
+	if (
+		useLocaleSuffix &&
+		exported.locale &&
+		typeof exported.locale === 'string'
+	) {
+		getUi().info(
+			`Entry "${entry.title}": requested="${localeCode}", exported.locale="${exported.locale}", title="${exported.title}"`,
+		);
+	}
+
 	// Skip writing this locale version if it's a fallback (locale doesn't match requested)
 	// This happens when Contentstack returns the default locale content because
 	// no localized version exists for the requested locale
@@ -133,7 +148,10 @@ async function writeLocaleVersion(
 		typeof exported.locale === 'string' &&
 		exported.locale !== localeCode
 	) {
-		// This is a fallback locale, skip writing it silently
+		// This is a fallback locale, skip writing it
+		getUi().warn(
+			`Skipping locale file for entry "${entry.title}" (${entry.uid}): requested locale "${localeCode}" but got "${exported.locale}" (fallback detected)`,
+		);
 		return;
 	}
 
