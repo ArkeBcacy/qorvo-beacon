@@ -43,6 +43,9 @@ export default async function toFilesystem(
 		plan: planMerge(equality, csEntries, fsEntries),
 		progress: bar,
 		remove,
+		// Process unmodified entries to ensure locale versions are checked/written
+		// even when the master locale content hasn't changed
+		unmodified: write,
 		update: write,
 	});
 }
@@ -130,7 +133,7 @@ async function writeLocaleVersion(
 		typeof exported.locale === 'string' &&
 		exported.locale !== localeCode
 	) {
-		// This is a fallback locale, skip writing it
+		// This is a fallback locale, skip writing it silently
 		return;
 	}
 

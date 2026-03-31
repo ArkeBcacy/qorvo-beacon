@@ -11,7 +11,7 @@ export default function mockMergePlan(
 	const expected = {
 		toCreate: new Map<string, AssetMeta>(),
 		toRemove: new Map<string, AssetMeta>(),
-		toSkip: new Set<string>(),
+		toSkip: new Map<string, AssetMeta>(),
 		toUpdate: new Map<string, AssetMeta>(),
 	};
 
@@ -21,7 +21,7 @@ export default function mockMergePlan(
 	switch (theory.expected) {
 		case 'skip':
 		case 'warning':
-			expected.toSkip.add(itemPath);
+			expected.toSkip.set(itemPath, sourceItem ?? destinationItem!);
 			break;
 
 		case 'create':
