@@ -60,8 +60,9 @@ async function fetchEntryLocales(
 		);
 
 		// Debug logging for multi-locale entries
-		if (locales.length > 1) {
-			getUi().info(
+		const ui = getUi();
+		if (ui.options.verbose && locales.length > 1) {
+			ui.info(
 				`Entry "${entry.title}" has ${locales.length} locales: ${locales.map((l) => l.code).join(', ')}`,
 			);
 		}
@@ -130,12 +131,14 @@ function shouldSkipFallbackLocale(
 	useLocaleSuffix: boolean,
 ): boolean {
 	// Debug: Log the exported locale vs requested locale
+	const ui = getUi();
 	if (
+		ui.options.verbose &&
 		useLocaleSuffix &&
 		exported.locale &&
 		typeof exported.locale === 'string'
 	) {
-		getUi().info(
+		ui.info(
 			`Entry "${entry.title}": requested="${localeCode}", exported.locale="${exported.locale}", title="${exported.title}"`,
 		);
 	}
@@ -150,9 +153,11 @@ function shouldSkipFallbackLocale(
 		exported.locale !== localeCode
 	) {
 		// This is a fallback locale, skip writing it
-		getUi().warn(
-			`Skipping locale file for entry "${entry.title}" (${entry.uid}): requested locale "${localeCode}" but got "${exported.locale}" (fallback detected)`,
-		);
+		if (ui.options.verbose) {
+			ui.warn(
+				`Skipping locale file for entry "${entry.title}" (${entry.uid}): requested locale "${localeCode}" but got "${exported.locale}" (fallback detected)`,
+			);
+		}
 		return true;
 	}
 	return false;
