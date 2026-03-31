@@ -47,6 +47,39 @@ export default async function toFilesystem(
 	});
 }
 
+async function fetchEntryLocales(
+	ctx: Ctx,
+	contentType: ContentType,
+	entry: Entry,
+): Promise<readonly { code: string }[] | null> {
+	try {
+		const locales = await getEntryLocales(
+			ctx.cs.client,
+			contentType.uid,
+			entry.uid,
+		);
+
+		// Debug logging for multi-locale entries
+		if (locales.length > 1) {
+			getUi().info(
+				`Entry "${entry.title}" has ${locales.length} locales: ${locales.map((l) => l.code).join(', ')}`,
+			);
+		}
+		return locales;
+	} catch {
+		// If the locales endpoint fails (e.g., not supported by Contentstack instance),
+		// fall back to single-locale behavior using entry's locale property
+		if (!entry.locale || typeof entry.locale !== 'string') {
+			// Skip entries without a valid locale
+			getUi().warn(
+				`Warning: Skipping entry "${entry.title}" (${entry.uid}) in ${contentType.uid} - no valid locale information available`,
+			);
+			return null;
+		}
+		return [{ code: entry.locale }];
+	}
+}
+
 function createWriteFn(
 	ctx: Ctx,
 	contentType: ContentType,
@@ -54,38 +87,15 @@ function createWriteFn(
 	getBasePath: (entry: Entry) => string,
 ) {
 	return async (entry: Entry) => {
-		let locales: readonly { code: string }[];
-		try {
-			locales = await getEntryLocales(
-				ctx.cs.client,
-				contentType.uid,
-				entry.uid,
-			);
+		const locales = await fetchEntryLocales(ctx, contentType, entry);
 
-			// Debug logging for multi-locale entries
-			if (locales.length > 1) {
-				getUi().info(
-					`Entry "${entry.title}" has ${locales.length} locales: ${locales.map((l) => l.code).join(', ')}`,
-				);
-			}
-		} catch {
-			// If the locales endpoint fails (e.g., not supported by Contentstack instance),
-			// fall back to single-locale behavior using entry's locale property
-			if (!entry.locale || typeof entry.locale !== 'string') {
-				// Skip entries without a valid locale
-				getUi().warn(
-					`Warning: Skipping entry "${entry.title}" (${entry.uid}) in ${contentType.uid} - no valid locale information available`,
-				);
-				return;
-			}
-			locales = [{ code: entry.locale }];
-		}
-
-		if (locales.length === 0) {
+		if (!locales || locales.length === 0) {
 			// If no locales available, skip this entry
-			getUi().warn(
-				`Warning: Skipping entry "${entry.title}" (${entry.uid}) in ${contentType.uid} - no locales returned`,
-			);
+			if (locales?.length === 0) {
+				getUi().warn(
+					`Warning: Skipping entry "${entry.title}" (${entry.uid}) in ${contentType.uid} - no locales returned`,
+				);
+			}
 			return;
 		}
 
@@ -113,21 +123,12 @@ function createWriteFn(
 	};
 }
 
-async function writeLocaleVersion(
-	ctx: Ctx,
-	contentType: ContentType,
+function shouldSkipFallbackLocale(
 	entry: Entry,
+	exported: Entry,
 	localeCode: string,
-	getBasePath: (entry: Entry) => string,
 	useLocaleSuffix: boolean,
-) {
-	const exported = await exportEntryLocale(
-		contentType.uid,
-		ctx.cs.client,
-		entry.uid,
-		localeCode,
-	);
-
+): boolean {
 	// Debug: Log the exported locale vs requested locale
 	if (
 		useLocaleSuffix &&
@@ -152,6 +153,27 @@ async function writeLocaleVersion(
 		getUi().warn(
 			`Skipping locale file for entry "${entry.title}" (${entry.uid}): requested locale "${localeCode}" but got "${exported.locale}" (fallback detected)`,
 		);
+		return true;
+	}
+	return false;
+}
+
+async function writeLocaleVersion(
+	ctx: Ctx,
+	contentType: ContentType,
+	entry: Entry,
+	localeCode: string,
+	getBasePath: (entry: Entry) => string,
+	useLocaleSuffix: boolean,
+) {
+	const exported = await exportEntryLocale(
+		contentType.uid,
+		ctx.cs.client,
+		entry.uid,
+		localeCode,
+	);
+
+	if (shouldSkipFallbackLocale(entry, exported, localeCode, useLocaleSuffix)) {
 		return;
 	}
 
