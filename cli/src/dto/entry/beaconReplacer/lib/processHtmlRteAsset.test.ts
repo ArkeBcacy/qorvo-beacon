@@ -2,8 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ContentType } from '#cli/cs/content-types/Types.js';
 import type { ReferencePath } from '#cli/cs/entries/Types.js';
 import BeaconReplacer from '../../BeaconReplacer.js';
-
-type MinimalCtx = Parameters<typeof BeaconReplacer.prototype.constructor>[0];
+import type MinimalCtx from '../../lib/MinimalCtx.js';
 
 const EXPECTED_MATCH_COUNT = 2;
 
@@ -45,7 +44,10 @@ describe('processHtmlRteAsset - Entry References', () => {
 	};
 
 	it('should handle entry references in href attributes', () => {
-		const replacer = new BeaconReplacer(mockCtx as MinimalCtx, mockContentType);
+		const replacer = new BeaconReplacer(
+			mockCtx as unknown as MinimalCtx,
+			mockContentType,
+		);
 		(replacer as BeaconReplacer & { refPath: string }).refPath =
 			'test_content_type/Source Entry';
 
@@ -67,7 +69,10 @@ describe('processHtmlRteAsset - Entry References', () => {
 	});
 
 	it('should handle multiple entry references', () => {
-		const replacer = new BeaconReplacer(mockCtx as MinimalCtx, mockContentType);
+		const replacer = new BeaconReplacer(
+			mockCtx as unknown as MinimalCtx,
+			mockContentType,
+		);
 		(replacer as BeaconReplacer & { refPath: string }).refPath =
 			'test_content_type/Source Entry';
 
@@ -95,7 +100,10 @@ describe('processHtmlRteAsset - Entry References', () => {
 	});
 
 	it('should leave regular href attributes unchanged', () => {
-		const replacer = new BeaconReplacer(mockCtx as MinimalCtx, mockContentType);
+		const replacer = new BeaconReplacer(
+			mockCtx as unknown as MinimalCtx,
+			mockContentType,
+		);
 		(replacer as BeaconReplacer & { refPath: string }).refPath =
 			'test_content_type/Test Entry';
 
@@ -110,7 +118,10 @@ describe('processHtmlRteAsset - Entry References', () => {
 	});
 
 	it('should handle complex HTML with entry references', () => {
-		const replacer = new BeaconReplacer(mockCtx as MinimalCtx, mockContentType);
+		const replacer = new BeaconReplacer(
+			mockCtx as unknown as MinimalCtx,
+			mockContentType,
+		);
 		(replacer as BeaconReplacer & { refPath: string }).refPath =
 			'test_content_type/Source Entry';
 
@@ -129,7 +140,10 @@ describe('processHtmlRteAsset - Entry References', () => {
 	});
 
 	it('should handle real-world example from migration', () => {
-		const replacer = new BeaconReplacer(mockCtx as MinimalCtx, mockContentType);
+		const replacer = new BeaconReplacer(
+			mockCtx as unknown as MinimalCtx,
+			mockContentType,
+		);
 		(replacer as BeaconReplacer & { refPath: string }).refPath =
 			'page_article_page/5G in 60: 5G Base Station Rollout';
 
