@@ -23,7 +23,7 @@ import resolveItemPath from './assets/lib/resolveItemPath.js';
 export default async function clear(
 	client: Client,
 	ui: UiContext,
-	deleteAssets = true,
+	deleteAssets = false,
 	contentTypes: string[] = [],
 ) {
 	if (contentTypes.length > 0) {
@@ -47,7 +47,13 @@ async function deleteEntriesAndContentTypes(
 	const allContentTypes = await indexContentTypes(client);
 	const globalFields = await indexGlobalFields(client);
 
-	logAvailableContentTypes(ui, allContentTypes);
+	if (ui.options.verbose) {
+		ui.info('\nAvailable content types:');
+		for (const [uid, ct] of allContentTypes) {
+			ui.info(`  - ${uid} (${ct.title})`);
+		}
+		ui.info('');
+	}
 
 	const contentTypesToClear = filterContentTypes(
 		allContentTypes,
@@ -79,18 +85,6 @@ async function deleteEntriesAndContentTypes(
 		() => new Map(contentTypesToClear.map((ct) => [ct.uid, ct])),
 		async (item) => deleteContentType(client, item.uid),
 	);
-}
-
-function logAvailableContentTypes(
-	ui: UiContext,
-	allContentTypes: ReadonlyMap<string, ContentType>,
-) {
-	if (!ui.options.verbose) return;
-	ui.info('\nAvailable content types:');
-	for (const [uid, ct] of allContentTypes) {
-		ui.info(`  - ${uid} (${ct.title})`);
-	}
-	ui.info('');
 }
 
 function filterContentTypes(
@@ -272,10 +266,13 @@ async function deleteAllAssets(
 	const files = new Map<string, RawAsset>();
 
 	for (const asset of assets.values()) {
+		// Always skip nested assets (deleted with parent)
+		if (asset.parent_uid) continue;
+
 		if (!deleteAssets) {
 			const itemPath = resolveItemPath(assets, asset);
-			// Skip assets not matching filters or nested assets (deleted with parent)
-			if (!isIncluded(itemPath) || asset.parent_uid) continue;
+			// Skip assets not matching filters
+			if (!isIncluded(itemPath)) continue;
 		}
 
 		if (isRawAsset(asset)) {
